@@ -53,6 +53,7 @@ module cim_rv_system #(
     // Sample actual CiM STATUS on the diagnostic bus while the CPU waits.
     wire [7:0] cfg_addr = cim_select ? cpu_addr[7:0] : 8'h04;
     wire [31:0] cfg_rdata;
+    wire start_accepted;
     wire mem_valid, mem_write, mem_ready;
     wire [31:0] mem_addr, mem_wdata;
     wire [3:0] mem_wstrb;
@@ -63,7 +64,7 @@ module cim_rv_system #(
     cim_accel accel (
         .clk(clk), .rst_n(run_n), .cfg_valid(cim_select),
         .cfg_write(cfg_write), .cfg_addr(cfg_addr), .cfg_wdata(cpu_wdata),
-        .cfg_ready(), .cfg_rdata(cfg_rdata),
+        .cfg_ready(), .cfg_rdata(cfg_rdata), .start_accepted(start_accepted),
         .mem_valid(mem_valid), .mem_write(mem_write), .mem_addr(mem_addr),
         .mem_wdata(mem_wdata), .mem_wstrb(mem_wstrb), .mem_ready(mem_ready),
         .mem_rvalid(mem_rvalid), .mem_rdata(port_b_rdata)
@@ -164,7 +165,7 @@ module cim_rv_system #(
                 endcase
             end
             mem_rvalid <= cim_access && !mem_write;
-            if (cfg_write && cpu_addr[7:0] == 8'h00 && cpu_wdata[0])
+            if (start_accepted)
                 committed_writes <= '0;
             else if (cim_access && mem_write)
                 committed_writes <= committed_writes + 1'b1;

@@ -42,7 +42,15 @@ M=1 两模式各增加 8 拍。2026-11-05 的原始板测中，两次热复位�
 
 ## 快速开始
 
-已验证环境为 Windows x64、Python 3.12.0、G++ 9.3.0 和 Questa 2024.1。
+Linux / WSL 的公开回归使用 Python 3、G++ 和 Icarus Verilog（Ubuntu 24.04
+验证环境使用 Icarus 12.0）。入口依次核对官方整数参考、运行宏和量化单元测试、
+并比较完整算子的 INT8 输出。
+
+```bash
+python3 tools/run.py --dataset synthetic --simulator iverilog
+```
+
+Windows 可使用 Python 3.12.0、G++ 9.3.0 和 Questa 2024.1。
 在项目根目录设置实际工具路径。`CXX` 可省略，脚本会先查找 PATH 中的 `g++`。
 首次运行需要从固定的 GitHub 上游下载官方参考函数。用合成输入快速跑完整 RTL
 时只需上述依赖。
@@ -64,8 +72,10 @@ build/tf_env/Scripts/python.exe -m pip install -r tools/requirements-runtime.txt
 python tools/run.py --real-activations --simulator questa
 ```
 
-`python tools/run.py --model`仅解析模型并复用已有、经验证的激活导出；无导出
-时只使用合成激活。输入来源与复现细节见[激活来源记录](docs/ACTIVATIONS.md)。
+`--dataset synthetic` 是固定默认集。`--dataset model`（旧 `--model`）增加真实权重、
+合成激活用例。`--dataset real` 要求已有经校验的 tensor23，`--real-activations`
+先导出再执行该集。缓存存在与否不改变用例集。`--skip-official-check` 仅供
+调试，终端和日志均标记 SKIPPED。输入来源见 [激活来源记录](docs/ACTIVATIONS.md)。
 日志和逐任务周期保存在 `build/`。最终真实激活回归为 16 个任务、64,512 字节
 匹配，含合成和真实输入。周期由各测试的存储模型决定，板上周期以上表为准。
 

@@ -84,7 +84,7 @@ def stage_m_unit(source):
 
 def prepare(source, tools):
     sources = cpu_hashes(source)
-    cases = generate()
+    cases = generate("real")
     case = next((case for case in cases if case["M"] == 125 and "activation_sha256" in case), None)
     if case is None:
         raise ValueError("A verified real tensor23 export is required. Run tools/run.py --real-activations.")
@@ -170,6 +170,12 @@ def simulate(source, questa, trace_blocks):
         ROOT / "fpga/cim_rv_system.sv", ROOT / "tb/tb_rv_system.sv"]
     run([questa / "vlog.exe", "-sv", f"+incdir+{OUT / 'cpu_include'}+{source / 'common'}",
          *sources], "soc_compile.log")
+    counter = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", "tb_rv_system",
+                   "+TEST_START_COUNTER", "-do",
+                   "onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0"],
+                  "start_counter.log")
+    if "PASS accepted START" not in counter:
+        raise RuntimeError("Accepted START commit counter test did not pass")
     # Existing RF and predictor arrays have power-up initializers as well as
     # always_ff writes. Keep the source intact and allow that Questa diagnostic.
     trace_args = ["+TRACE_BLOCKS"] if trace_blocks else []

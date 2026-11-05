@@ -104,11 +104,13 @@ def make_case(index, m, model=None, activation=None):
     return {'index': index, 'M': m, 'source': source, 'outputs': len(golden)}
 
 
-def generate():
+def generate(dataset="synthetic"):
     model_file = ROOT / 'build/model_layer.json'
-    model = json.loads(model_file.read_text()) if model_file.exists() else None
+    model = json.loads(model_file.read_text()) if dataset in ("model", "real") else None
     activation_file=ROOT/'build/layer_activation.json'
-    activation=json.loads(activation_file.read_text()) if activation_file.exists() else None
+    if dataset == "real" and not activation_file.is_file():
+        raise ValueError("Real tensor23 missing. Run tools/run.py --real-activations first")
+    activation=json.loads(activation_file.read_text()) if dataset == "real" else None
     activation_metadata=None
     if activation is not None:
         activation_metadata=json.loads((ROOT/'build/activation_metadata.json').read_text())

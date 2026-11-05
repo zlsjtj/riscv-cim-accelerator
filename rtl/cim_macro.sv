@@ -29,20 +29,18 @@ module cim_macro (
     assign w_ready = !busy;
     assign start_ready = !busy && !w_valid; // Programming has priority.
 
-    always_comb begin
-        for (int col=0; col<16; col++) begin
-            for (int row=0; row<64; row++) begin
-                if (!a_plane[row])
-                    plane_tree[col][64+row] = '0;
-                else if ((col % 2) == 0)
-                    plane_tree[col][64+row] = $signed({1'b0, weights[row][col]});
-                else
-                    plane_tree[col][64+row] = $signed(weights[row][col]);
-            end
-            for (int node=63; node>=1; node--)
-                plane_tree[col][node] = plane_tree[col][2*node] + plane_tree[col][2*node+1];
-            next_accum[col] = (accum[col] <<< 1) + plane_tree[col][1];
+    // Elaborate the existing balanced tree as individual nodes so a weight
+    // change does not reevaluate every column in event-driven simulation.
+    for (genvar col=0; col<16; col++) begin : columns
+        for (genvar row=0; row<64; row++) begin : leaves
+            wire [3:0] weight = weights[row][col];
+            assign plane_tree[col][64+row] =
+                a_plane[row] ? {{7{(col % 2 != 0) && weight[3]}}, weight} : 11'd0;
         end
+        for (genvar node=1; node<64; node++) begin : nodes
+            assign plane_tree[col][node] = plane_tree[col][2*node] + plane_tree[col][2*node+1];
+        end
+        assign next_accum[col] = (accum[col] <<< 1) + plane_tree[col][1];
     end
 
     always_ff @(posedge clk) begin

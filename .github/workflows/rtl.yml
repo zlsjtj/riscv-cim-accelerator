@@ -1,0 +1,21 @@
+name: Public RTL regression
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  iverilog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Install simulator and reference compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog g++
+          python3 --version
+          g++ --version
+      - name: Official reference, units and full operator
+        run: python3 tools/run.py --dataset synthetic --simulator iverilog

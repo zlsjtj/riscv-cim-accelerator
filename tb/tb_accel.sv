@@ -4,7 +4,7 @@ module tb_accel;
  reg rst_n=0,cfg_valid=0,cfg_write=0;
  reg [7:0] cfg_addr=0;
  reg [31:0] cfg_wdata=0;
- wire cfg_ready; wire [31:0] cfg_rdata;
+ wire cfg_ready,start_accepted; wire [31:0] cfg_rdata;
  wire mem_valid,mem_write; wire [31:0] mem_addr,mem_wdata;
  wire [3:0] mem_wstrb;
  reg mem_ready=0,mem_rvalid=0; reg [31:0] mem_rdata=0;

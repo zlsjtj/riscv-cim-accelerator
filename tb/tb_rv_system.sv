@@ -13,6 +13,51 @@ module tb_rv_system;
         .tx_start(tx_start), .tx_data(tx_data)
     );
 
+    logic counter_test;
+    logic [31:0] test_addr, test_data;
+    logic test_wen;
+    task write_test_cfg(input [7:0] addr, input [31:0] data);
+        @(negedge clk);
+        test_addr=32'h80201000 | {24'b0,addr}; test_data=data; test_wen=1;
+        @(negedge clk); test_wen=0;
+    endtask
+
+    task test_start_counter;
+        logic [31:0] prior;
+        force dut.cpu_addr=test_addr;
+        force dut.cpu_wdata=test_data;
+        force dut.cpu_mask=2'b10;
+        force dut.cpu_wen=test_wen;
+        write_test_cfg('h08,1);
+        write_test_cfg('h0c,'h8010a000);
+        write_test_cfg('h10,'h8010c000);
+        write_test_cfg('h14,'h8010d000);
+        write_test_cfg('h18,'h80108000);
+        write_test_cfg('h00,1);
+        wait(dut.committed_writes!=0);
+        // Reject a START while busy. Account for any write committed that edge.
+        @(negedge clk);
+        test_addr='h80201000; test_data=1; test_wen=1;
+        @(posedge clk);
+        if (dut.start_accepted || !dut.accel.busy) $fatal(1,"Busy rejection not exercised");
+        prior=dut.committed_writes + (dut.cim_access && dut.mem_write);
+        #1;
+        if (dut.committed_writes!==prior) $fatal(1,"Busy rejection changed committed_writes");
+        @(negedge clk); test_wen=0;
+        wait(dut.accel.done);
+        if (dut.committed_writes!=16) $fatal(1,"Lost original task writes");
+        write_test_cfg('h08,0);
+        write_test_cfg('h00,1);
+        if (dut.committed_writes!=16 || dut.accel.busy || !dut.accel.error)
+            $fatal(1,"Illegal configuration discarded write history");
+        write_test_cfg('h08,1);
+        write_test_cfg('h00,1);
+        if (dut.committed_writes!=0 || !dut.accel.busy)
+            $fatal(1,"Accepted START did not clear write history");
+        $display("PASS accepted START clears commit counter, rejected START preserves it");
+        $finish;
+    endtask
+
     // Optional task-relative trace. Each row samples signals at the named edge
     // before nonblocking assignments, except DONE which is first observed one edge later.
     int trace_file;
@@ -80,8 +125,14 @@ module tb_rv_system;
         end
     end
     initial begin
+        counter_test = $test$plusargs("TEST_START_COUNTER");
+        test_addr=0; test_data=0; test_wen=0;
         repeat (8) @(negedge clk);
         rst_n = 1'b1;
+        if (counter_test) fork
+            test_start_counter();
+            begin repeat (20000) @(posedge clk); $fatal(1, "Commit counter test timed out"); end
+        join
         repeat (4000000) @(posedge clk);
         $fatal(1, "RV32I firmware timed out");
     end

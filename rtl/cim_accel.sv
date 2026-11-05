@@ -7,6 +7,7 @@ module cim_accel (
  input logic [31:0] cfg_wdata,
  output logic cfg_ready,
  output logic [31:0] cfg_rdata,
+ output logic start_accepted,
  output logic mem_valid, mem_write,
  output logic [31:0] mem_addr, mem_wdata,
  output logic [3:0] mem_wstrb,
@@ -60,6 +61,10 @@ module cim_accel (
  logic signed [31:0] q_acc,q_mul,q_shift;
  integer c,j,k,s;
  logic signed [31:0] native_low,native_high,contribution;
+
+ assign start_accepted = rst_n && cfg_valid && cfg_write && cfg_addr==8'h00 &&
+                         cfg_wdata[0] && !busy && shadow_m>=1 && shadow_m<=125 &&
+                         shadow_mode<=1 && ((shadow_a|shadow_w|shadow_p|shadow_y)&32'h3)==0;
 
  cim_macro macro_unit(.clk(clk),.rst_n(rst_n),.w_valid(w_valid),.w_ready(w_ready),
   .w_row(w_row),.w_data(w_data),.start(mac_start),.start_ready(mac_ready),
@@ -145,8 +150,7 @@ module cim_accel (
      8'h00: begin
       if(cfg_wdata[1]) done<=0;
       if(cfg_wdata[0]) begin
-       if(busy || shadow_m<1 || shadow_m>125 || shadow_mode>1 ||
-         ((shadow_a|shadow_w|shadow_p|shadow_y)&32'h3)!=0) error<=1;
+       if(!start_accepted) error<=1;
        else begin
         busy<=1;done<=0;error<=0;state<=PARAM;
         task_m<=shadow_m[7:0];a_base<=shadow_a;w_base<=shadow_w;

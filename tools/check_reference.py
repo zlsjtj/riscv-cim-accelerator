@@ -22,7 +22,7 @@ COMMIT = '16e8662c34917be0065110bfcd9cc27d30f52fdf'
 FILES = ['fixedpoint/fixedpoint.h', 'internal/detect_platform.h']
 
 
-def check():
+def check(use_model=False):
     dep = ROOT/'build/deps'
     for rel in FILES:
         p = dep/rel
@@ -57,7 +57,7 @@ def check():
         assert multiply(*case) == got, (case, multiply(*case), got)
     scales=[0.0,2**-40,2**-31,0.002702844686064139,0.006526506741479271,0.5]
     layer=ROOT/'build/model_layer.json'
-    if layer.exists():
+    if use_model:
         import json
         scales+=json.loads(layer.read_text())['effective_scale']
     result=subprocess.run([str(exe)],input=''.join(f'Q {s:.17g}\n' for s in scales),text=True,capture_output=True,env=env,check=True)

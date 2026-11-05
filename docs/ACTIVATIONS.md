@@ -69,8 +69,8 @@ python tools/run.py --real-activations
 TensorFlow2.16.1/NumPy1.26.4隔离于`build/tf_env`，模型解析环境仍使用
 NumPy2.1.2。不要将`build/deps_python`加入TensorFlow进程的PYTHONPATH。
 可用`--tf-python`指定另一套已安装TensorFlow2.16.1的Python。
-只回归已有导出可用`python tools/run.py --model`；缺少已验证导出时不会
-声称真实激活回归成功，重新导出应使用`--real-activations`。
+只回归已有导出可用 `python tools/run.py --dataset real`，缺少已验证导出时会报错。
+重新导出使用 `--real-activations`。`--dataset model` 只使用真实权重和合成激活。
 
 ## 范围
 

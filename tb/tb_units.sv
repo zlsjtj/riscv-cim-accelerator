@@ -23,13 +23,13 @@ module tb_units;
                    a,m,s,quant.high,quant.rounded,value,expected_high,expected_rounded,expected_value);
     endtask
 
-    task automatic operation(input logic [63:0] planes[0:3], input integer lo, hi);
+    task automatic operation(input logic [255:0] planes, input integer lo, hi);
         @(negedge clk); start=1;
         @(posedge clk); #1;
         if (!busy || result_valid) $fatal(1,"start timing");
         @(negedge clk); start=0;
         for (int b=0; b<4; b++) begin
-            a_plane=planes[b];
+            a_plane=planes[64*b +: 64];
             // Busy programming must never be accepted.
             w_valid=1; w_data='0;
             #1;
@@ -52,7 +52,6 @@ module tb_units;
         if (result_valid || busy) $fatal(1,"result must be one cycle");
     endtask
 
-    logic [63:0] planes [0:3];
     initial begin
         repeat(2) @(posedge clk);
         @(negedge clk); rst_n=1;
@@ -64,12 +63,9 @@ module tb_units;
             if (!w_ready) $fatal(1,"weight programming blocked idle");
         end
         @(negedge clk); w_valid=0;
-        for (int i=0; i<4; i++) planes[i]='1;
-        operation(planes,14400,-7680);
-        planes[0]='1; planes[1]='0; planes[2]='1; planes[3]='0;
-        operation(planes,9600,-5120);
-        for (int i=0; i<4; i++) planes[i]='0;
-        operation(planes,0,0);
+        operation('1,14400,-7680);
+        operation({64'b0,{64{1'b1}},64'b0,{64{1'b1}}},9600,-5120);
+        operation('0,0,0);
 
         // Achieve the documented minimum II=5: E5 immediately accepts a
         // new start while the previous one-cycle result is consumed.
