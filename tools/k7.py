@@ -12,11 +12,11 @@ from pathlib import Path
 
 from reference import ROOT, generate
 
-OUT = ROOT / "build/k7_sram_baseline"
+OUT = ROOT / "build/k7_sram_ii1"
 CPU = ("RF", "Control", "IMMGEN", "CCTL", "ALU", "ACTL", "CSR")
 INCLUDES = ("defines", "myCPU_units", "myCPU_m_ext", "myCPU_bitmanip")
 EXPECTED = [(0, 125), (0, 1), (1, 125), (1, 1)]
-USR_ACCESS = "43494d35"
+USR_ACCESS = "43494d36"
 
 
 def run(command, log):

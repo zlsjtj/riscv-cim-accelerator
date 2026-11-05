@@ -27,6 +27,8 @@ module cim_accel (
  logic [7:0] load_word;
  logic signed [31:0] bias[0:7], multiplier[0:7], shift[0:7];
  logic rd_pending;
+ logic request_valid;
+ logic [31:0] request_addr, rd_next_addr;
  logic [1:0] req_kind, rd_kind;
  logic req_ctx, rd_ctx;
  logic [7:0] req_index, rd_index;
@@ -65,6 +67,16 @@ module cim_accel (
  assign start_accepted = rst_n && cfg_valid && cfg_write && cfg_addr==8'h00 &&
                          cfg_wdata[0] && !busy && shadow_m>=1 && shadow_m<=125 &&
                          shadow_mode<=1 && ((shadow_a|shadow_w|shadow_p|shadow_y)&32'h3)==0;
+
+ // A returning input word releases the single read credit on this edge.
+ // Only offer the next word of the same context, with ready writes taking
+ // precedence. If stalled, the ordinary request registers hold the offer.
+ wire read_return = rd_pending && mem_rvalid;
+ wire input_follow = rst_n && !request_valid && read_return && state==RUN &&
+                     rd_kind==RD_INPUT && rd_index<15 && output_ready==0;
+ wire read_accept = mem_valid && mem_ready && !mem_write;
+ assign mem_valid = request_valid || input_follow;
+ assign mem_addr = input_follow ? rd_next_addr : request_addr;
 
  cim_macro macro_unit(.clk(clk),.rst_n(rst_n),.w_valid(w_valid),.w_ready(w_ready),
   .w_row(w_row),.w_data(w_data),.start(mac_start),.start_ready(mac_ready),
@@ -118,8 +130,8 @@ module cim_accel (
    shadow_m<=1;shadow_a<=0;shadow_w<=0;shadow_p<=0;shadow_y<=0;shadow_mode<=0;
    a_base<=0;w_base<=0;p_base<=0;y_base<=0;task_m<=0;mode<=0;tile<=0;next_p<=0;
    cycles<=0;mem_wait<=0;macro_cycles<=0;
-   mem_valid<=0;mem_write<=0;mem_addr<=0;mem_wdata<=0;mem_wstrb<=0;
-   rd_pending<=0;req_kind<=0;rd_kind<=0;req_ctx<=0;rd_ctx<=0;
+   request_valid<=0;mem_write<=0;request_addr<=0;mem_wdata<=0;mem_wstrb<=0;
+   rd_pending<=0;rd_next_addr<=0;req_kind<=0;rd_kind<=0;req_ctx<=0;rd_ctx<=0;
    req_index<=0;rd_index<=0;req_last<=0;load_word<=0;weight_low<=0;
    w_valid<=0;w_row<=0;w_data<=0;
    live<=0;input_ready<=0;issued_low<=0;issued_high<=0;recon_done<=0;output_ready<=0;
@@ -134,6 +146,7 @@ module cim_accel (
    for(j=0;j<8;j=j+1) begin bias[j]<=0;multiplier[j]<=0;shift[j]<=0;end
   end else begin
    q_result_valid<=q_valid;
+   rd_pending<=(rd_pending && !mem_rvalid) || read_accept;
    if(busy) begin
     cycles<=cycles+1;
     if(mem_valid && !mem_ready) mem_wait<=mem_wait+1;
@@ -157,7 +170,7 @@ module cim_accel (
         p_base<=shadow_p;y_base<=shadow_y;mode<=shadow_mode[0];
         tile<=0;next_p<=0;load_word<=0;cycles<=0;mem_wait<=0;macro_cycles<=0;
         live<=0;input_ready<=0;issued_low<=0;issued_high<=0;recon_done<=0;output_ready<=0;
-        raw_valid<=0;raw_reserved<=0;write_index<=0;rd_pending<=0;mem_valid<=0;
+        raw_valid<=0;raw_reserved<=0;write_index<=0;rd_pending<=0;request_valid<=0;
        end
       end
      end
@@ -171,18 +184,25 @@ module cim_accel (
    end
 
    // Request registers are never changed while valid && !ready.
-   if(mem_valid && mem_ready) begin
-    mem_valid<=0;
-    if(!mem_write) begin
-     rd_pending<=1;rd_kind<=req_kind;rd_ctx<=req_ctx;rd_index<=req_index;
-    end else begin
+   if(request_valid && mem_ready) request_valid<=0;
+   if(input_follow && !mem_ready) begin
+    request_valid<=1;request_addr<=rd_next_addr;
+    req_kind<=RD_INPUT;req_ctx<=rd_ctx;req_index<=rd_index+1'b1;
+   end
+   if(read_accept) begin
+    rd_kind<=input_follow ? RD_INPUT : req_kind;
+    rd_ctx<=input_follow ? rd_ctx : req_ctx;
+    rd_index<=input_follow ? rd_index+1'b1 : req_index;
+    if(input_follow || req_kind==RD_INPUT) rd_next_addr<=mem_addr+32'd4;
+   end
+   if(mem_valid && mem_ready && mem_write) begin
      if(req_last) begin
       live[req_ctx]<=0;output_ready[req_ctx]<=0;write_index[req_ctx]<=0;
      end else write_index[req_ctx]<=1;
-    end
    end
-   if(mem_rvalid && rd_pending) begin
-    rd_pending<=0;
+   if(read_return) begin
+    // Nonblocking updates above preserve the old tag for this response,
+    // including when the same edge accepts its successor.
     case(rd_kind)
      RD_PARAM: begin
       case(rd_index%3)
@@ -221,32 +241,32 @@ module cim_accel (
    // One shared 32-bit port; at most one outstanding read and a reserved destination.
    if(busy && !mem_valid && !rd_pending && !w_valid) begin
     if(state==PARAM) begin
-     mem_valid<=1;mem_write<=0;mem_wstrb<=0;
-     mem_addr<=p_base+tile*96+load_word*4;req_kind<=RD_PARAM;req_index<=load_word;
+     request_valid<=1;mem_write<=0;mem_wstrb<=0;
+     request_addr<=p_base+tile*96+load_word*4;req_kind<=RD_PARAM;req_index<=load_word;
     end else if(state==WEIGHT) begin
-     mem_valid<=1;mem_write<=0;mem_wstrb<=0;
-     mem_addr<=w_base+tile*512+load_word*4;req_kind<=RD_WEIGHT;req_index<=load_word;
+     request_valid<=1;mem_write<=0;mem_wstrb<=0;
+     request_addr<=w_base+tile*512+load_word*4;req_kind<=RD_WEIGHT;req_index<=load_word;
     end else if(state==RUN) begin
      if(output_ready[0] || output_ready[1]) begin
       // Priority can only change between accepted requests, never under backpressure.
       if(output_ready[0]) begin
        req_ctx<=0;req_last<=write_index[0];
-       mem_addr<=y_base+position[0]*64+tile*8+write_index[0]*4;
+       request_addr<=y_base+position[0]*64+tile*8+write_index[0]*4;
        mem_wdata<=output_bytes[0][write_index[0]*32 +:32];
       end else begin
        req_ctx<=1;req_last<=write_index[1];
-       mem_addr<=y_base+position[1]*64+tile*8+write_index[1]*4;
+       request_addr<=y_base+position[1]*64+tile*8+write_index[1]*4;
        mem_wdata<=output_bytes[1][write_index[1]*32 +:32];
       end
-      mem_valid<=1;mem_write<=1;mem_wstrb<=4'hf;
+      request_valid<=1;mem_write<=1;mem_wstrb<=4'hf;
      end else if((live[0] && !input_ready[0]) || (live[1] && !input_ready[1])) begin
-      mem_valid<=1;mem_write<=0;mem_wstrb<=0;req_kind<=RD_INPUT;
+      request_valid<=1;mem_write<=0;mem_wstrb<=0;req_kind<=RD_INPUT;
       if(live[0] && !input_ready[0]) begin
        req_ctx<=0;req_index<={3'b0,fill_word[0]};
-       mem_addr<=a_base+position[0]*64+fill_word[0]*4;
+       request_addr<=a_base+position[0]*64+fill_word[0]*4;
       end else begin
        req_ctx<=1;req_index<={3'b0,fill_word[1]};
-       mem_addr<=a_base+position[1]*64+fill_word[1]*4;
+       request_addr<=a_base+position[1]*64+fill_word[1]*4;
       end
      end
     end

@@ -44,7 +44,7 @@ set drc_file [open drc.rpt r]
 set drc_text [read $drc_file]
 close $drc_file
 if {[regexp -line {^REQP-1839#} $drc_text]} {error "Asynchronous BRAM control warning remains"}
-set_property BITSTREAM.CONFIG.USERID 0x43494D35 [current_design]
-set_property BITSTREAM.CONFIG.USR_ACCESS 0x43494D35 [current_design]
+set_property BITSTREAM.CONFIG.USERID 0x43494D36 [current_design]
+set_property BITSTREAM.CONFIG.USR_ACCESS 0x43494D36 [current_design]
 write_bitstream -force cim_k7.bit
 puts "K7_BITSTREAM_READY"

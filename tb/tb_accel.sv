@@ -17,6 +17,9 @@ module tb_accel;
  integer pending_delay=0,final_hold=0,early_hold=0,task_m=1;
  reg read_pending=0,active=0,hold_seen=0;
  reg observed_outstanding=0,fixed_memory=0,vcd_trace=0;
+ reg check_rollover=0,expected_ctx;
+ reg [7:0] expected_index;
+ reg [1:0] previous_live, committed_release;
  reg [31:0] pending_addr=0;
  reg held=0; reg [68:0] held_request;
  integer i,j,case_id,mode_id,ncases=4,timeout_cycles;
@@ -25,6 +28,7 @@ module tb_accel;
  string vector_file;
  integer summary,steady_summary,trace,profile;
  integer port_stall, response_wait, idle_other;
+ integer follow_accepts, follow_stalls, weight_commits;
  reg p1_only=0,expected_busy_error=0,two_live_seen=0;
 
  // Requests may wait. A read response cannot be paused and returns once.
@@ -47,8 +51,18 @@ module tb_accel;
   service_count=service_count+1;
   mem_rvalid<=0;
   if(!rst_n) begin
-   read_pending=0;observed_outstanding=0;held=0;mem_rvalid<=0;
+   read_pending=0;observed_outstanding=0;held=0;check_rollover=0;mem_rvalid<=0;
   end else begin
+   if(check_rollover && (!dut.rd_pending || dut.rd_ctx!==expected_ctx || dut.rd_index!==expected_index))
+    $fatal(1,"read credit or tag lost on simultaneous response/request");
+   check_rollover=dut.input_follow && mem_ready;
+   if(dut.input_follow) begin
+    if(!mem_rvalid || !dut.rd_pending || dut.rd_index>=15 || mem_write ||
+       mem_addr!==dut.a_base + 64*dut.position[dut.rd_ctx] + 4*(dut.rd_index+1))
+     $fatal(1,"continuation did not name the next word of the old context");
+    expected_ctx=dut.rd_ctx;
+    expected_index=dut.rd_index+1;
+   end
    if(mem_rvalid && !observed_outstanding) $fatal(1,"unsolicited read response");
    if(mem_valid && mem_ready && !mem_write && observed_outstanding && !mem_rvalid)
     $fatal(1,"more than one outstanding read");
@@ -61,6 +75,17 @@ module tb_accel;
     if(trace && case_id==0 && mode_id==0)
      $fwrite(trace,"%0d,%0d,%0d,%08h,%b,%b,%b,%b,%b\n",dut.cycles+1,dut.state,dut.req_kind,
              mem_addr,mem_valid,mem_ready,mem_write,mem_rvalid,dut.rd_pending);
+   end
+   if(active) begin
+    if((previous_live & ~dut.live) != committed_release)
+     $fatal(1,"context release differed from final word commit");
+    previous_live=dut.live;
+    committed_release=0;
+    if(mem_valid && mem_ready && mem_write && dut.req_last)
+     committed_release[dut.req_ctx]=1;
+    if(dut.w_valid && dut.w_ready) weight_commits++;
+    if(dut.input_follow && mem_ready) follow_accepts++;
+    if(dut.input_follow && !mem_ready) follow_stalls++;
    end
    if(held && (!mem_valid || {mem_write,mem_addr,mem_wdata,mem_wstrb}!==held_request))
     $fatal(1,"unstable stalled memory request cycle=%0d",clock_count);
@@ -100,7 +125,10 @@ module tb_accel;
      read_count=read_count+1;
     end
    end
-   if(active && dut.done && write_count!=16*task_m) $fatal(1,"early DONE before final write commit");
+   if(active && dut.done && (write_count!=16*task_m || mem_valid || dut.rd_pending ||
+      dut.live!=0 || dut.raw_valid!=0 || dut.raw_reserved!=0 || dut.q_result_valid ||
+      dut.mac_busy || dut.mac_valid))
+    $fatal(1,"early DONE before pipeline drain and final write commit");
    if(active && dut.live==2'b11) two_live_seen=1;
    if((dut.raw_valid[0]+dut.raw_valid[1]+dut.raw_reserved[0]+dut.raw_reserved[1])>2)
     $fatal(1,"raw capacity exceeded");
@@ -108,6 +136,8 @@ module tb_accel;
    if(dut.mac_start && dut.mac_ready) begin
     if(dut.raw_valid[dut.sched_slot] || dut.raw_reserved[dut.sched_slot]) $fatal(1,"macro issued without free reservation slot");
     macro_count=macro_count+1;
+    if(active && weight_commits!=64*(dut.tile+1))
+     $fatal(1,"macro launched before its tile's last weight commit");
    end
   end
  end
@@ -166,6 +196,15 @@ module tb_accel;
   rd('h04,status);
   if(status!==0 || mem_valid || dut.q_result_valid)
    $fatal(1,"quantization result survived reset");
+
+  // Reset at a continuation offer for word 15, while word 14 returns.
+  configure(1,1);wr('h00,1);
+  for(int elapsed=0; elapsed<20000 && !(dut.input_follow && dut.rd_index==14); elapsed++)
+   @(negedge clk);
+  if(!dut.input_follow || dut.rd_index!=14) $fatal(1,"word-15 reset point not reached");
+  rst_n=0;repeat(3) @(negedge clk);rst_n=1;
+  rd('h04,status);
+  if(status!==0 || mem_valid || dut.rd_pending) $fatal(1,"continuation survived reset");
   for(case_id=0;case_id<ncases;case_id=case_id+1) begin
    for(mode_id=0;mode_id<(p1_only?1:2);mode_id=mode_id+1) begin
     task_m=case_m[case_id];
@@ -176,6 +215,8 @@ module tb_accel;
     for(i=0;i<8000;i=i+1) written[i]=0;
     read_count=0;write_count=0;response_count=0;macro_count=0;final_hold=0;early_hold=0;hold_seen=0;two_live_seen=0;
     port_stall=0;response_wait=0;idle_other=0;
+    previous_live=0;committed_release=0;
+    follow_accepts=0;follow_stalls=0;weight_commits=0;
     for(i=0;i<8;i=i+1) begin first_block[i]=0;last_block[i]=0;end
     configure(task_m,mode_id);
     service_count=0;
@@ -205,6 +246,9 @@ module tb_accel;
     if(task_m>1 && mode_id==1 && !two_live_seen) $fatal(1,"two live contexts were never exercised");
     if(read_count!=8*(152+16*task_m) || macro_count!=16*task_m)
      $fatal(1,"service count mismatch reads=%0d macros=%0d",read_count,macro_count);
+    if(weight_commits!=8*64 || follow_accepts==0 || (!fixed_memory && follow_stalls==0))
+     $fatal(1,"missing weight/continuation coverage weights=%0d follow=%0d stalls=%0d",
+            weight_commits,follow_accepts,follow_stalls);
     for(i=0;i<64*task_m;i=i+1) begin
      if(!written[i] || memory['h8000+i]!==golden[i])
       $fatal(1,"INT8 mismatch case=%0d mode=%0d p=%0d o=%0d expected=%h actual=%h written=%b",case_id,mode_id,i/64,i%64,golden[i],memory['h8000+i],written[i]);
@@ -225,13 +269,18 @@ module tb_accel;
     active=0;
    end
   end
-  // Unsupported runtime shift is rejected during parameter loading.
-  $readmemh("build/vectors/mem0.hex",memory);
-  memory['h6008]=1;memory['h6009]=0;memory['h600a]=0;memory['h600b]=0;
-  configure(1,0);wr('h00,1);status=1;timeout_cycles=0;
-  while(status[0]) begin rd('h04,status);timeout_cycles=timeout_cycles+2;if(timeout_cycles>1000)$fatal(1,"bad-shift reject timeout");end
-  if(!status[2] || status[1]) $fatal(1,"bad shift not rejected");
-  $display("PASS RTL protocol: stable waits, no duplicate writes, sticky DONE, invalid config, read and quantization reset abort");
+  for(int bad=0; bad<2; bad++) begin
+   $readmemh("build/vectors/mem0.hex",memory);
+   if(bad==0) memory['h6007]=8'hff; // negative multiplier
+   else begin
+    memory['h6008]=1;memory['h6009]=0;memory['h600a]=0;memory['h600b]=0;
+   end
+   configure(1,0);wr('h00,1);status=1;timeout_cycles=0;
+   while(status[0]) begin rd('h04,status);timeout_cycles=timeout_cycles+2;if(timeout_cycles>1000)$fatal(1,"parameter reject timeout");end
+   if(!status[2] || status[1] || mem_valid || observed_outstanding)
+    $fatal(1,"parameter error failed to drain");
+  end
+  $display("PASS RTL protocol: stable waits, one read credit, final commits, parameter errors, and reset aborts");
   $display("PASS ALL RTL");$fclose(summary);$fclose(steady_summary);$fclose(profile);
   if(trace) $fclose(trace);
   $finish;

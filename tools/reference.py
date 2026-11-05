@@ -130,6 +130,10 @@ def generate(dataset="synthetic"):
                 case['activation_metadata']='build/activation_metadata.json'
                 case['activation_sha256']=activation_metadata['activation_sha256']
                 case['input_rows']='all 125 rows' if case['M']==125 else 'first spatial row (p=0)'
+    # Append scheduler boundaries while retaining stable indices of the
+    # existing synthetic and model fixtures used in earlier evidence.
+    for m in (2, 3, 124):
+        cases.append(make_case(len(cases), m))
     (ROOT/'build/vectors/cases.json').write_text(json.dumps(cases, indent=2))
     (ROOT/'build/vectors/m_values.hex').write_text('\n'.join(f'{c["M"]:02x}' for c in cases)+'\n')
     print('REFERENCE generated', cases)
