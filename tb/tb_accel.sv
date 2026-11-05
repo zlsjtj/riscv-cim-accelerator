@@ -1,5 +1,5 @@
 `timescale 1ns/1ps
-module tb_accel;
+module tb_accel #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
  reg clk=0; always #5 clk=~clk;
  reg rst_n=0,cfg_valid=0,cfg_write=0;
  reg [7:0] cfg_addr=0;
@@ -11,7 +11,7 @@ module tb_accel;
  reg [7:0] memory[0:65535],golden[0:7999];
  reg [7:0] case_m[0:15];
  reg written[0:7999];
- cim_accel dut(.*);
+ cim_accel #(.TURNAROUND(TURNAROUND), .INPUT_CACHE(INPUT_CACHE)) dut(.*);
  integer clock_count=0,read_count=0,write_count=0,response_count=0,macro_count=0;
  integer first_block[0:7],last_block[0:7],service_count=0;
  integer pending_delay=0,final_hold=0,early_hold=0,task_m=1;
@@ -23,7 +23,9 @@ module tb_accel;
  reg [31:0] pending_addr=0;
  reg held=0; reg [68:0] held_request;
  integer i,j,case_id,mode_id,ncases=4,timeout_cycles;
- integer cycles_result,reads_result,writes_result;
+ integer cycles_result,read_latency=1,latency_limit=1,accept_edge;
+ integer cache_reads,cache_writes;
+ reg [2047:0] filled_words;
  reg [31:0] status;
  string vector_file;
  integer summary,steady_summary,trace,profile;
@@ -64,6 +66,8 @@ module tb_accel;
     expected_index=dut.rd_index+1;
    end
    if(mem_rvalid && !observed_outstanding) $fatal(1,"unsolicited read response");
+   if(mem_rvalid && fixed_memory && clock_count-accept_edge!=read_latency)
+    $fatal(1,"fixed memory latency disagrees with model");
    if(mem_valid && mem_ready && !mem_write && observed_outstanding && !mem_rvalid)
     $fatal(1,"more than one outstanding read");
    observed_outstanding=(observed_outstanding && !mem_rvalid) || (mem_valid && mem_ready && !mem_write);
@@ -72,7 +76,7 @@ module tb_accel;
     if(mem_valid && !mem_ready) port_stall++;
     else if(dut.rd_pending && !mem_rvalid) response_wait++;
     else if(!mem_valid) idle_other++;
-    if(trace && case_id==0 && mode_id==0)
+    if(trace && case_id==0 && mode_id==0 && read_latency==1)
      $fwrite(trace,"%0d,%0d,%0d,%08h,%b,%b,%b,%b,%b\n",dut.cycles+1,dut.state,dut.req_kind,
              mem_addr,mem_valid,mem_ready,mem_write,mem_rvalid,dut.rd_pending);
    end
@@ -86,6 +90,17 @@ module tb_accel;
     if(dut.w_valid && dut.w_ready) weight_commits++;
     if(dut.input_follow && mem_ready) follow_accepts++;
     if(dut.input_follow && !mem_ready) follow_stalls++;
+    if(dut.spad_read && dut.spad_write) $fatal(1,"scratchpad port conflict");
+    if(dut.spad_write) begin
+     if(filled_words[dut.spad_addr] || dut.spad_addr>=16*task_m)
+      $fatal(1,"duplicate or out-of-range scratchpad fill");
+     filled_words[dut.spad_addr]=1;
+     cache_writes++;
+    end
+    if(dut.spad_read) begin
+     if(!filled_words[dut.spad_addr]) $fatal(1,"scratchpad replay before current-task fill");
+     cache_reads++;
+    end
    end
    if(held && (!mem_valid || {mem_write,mem_addr,mem_wdata,mem_wstrb}!==held_request))
     $fatal(1,"unstable stalled memory request cycle=%0d",clock_count);
@@ -116,18 +131,20 @@ module tb_accel;
      end
     end else begin
      if(read_pending) $fatal(1,"multiple outstanding reads");
-     if(fixed_memory) begin
+     accept_edge=clock_count;
+     if(fixed_memory && read_latency==1) begin
       mem_rvalid<=1;
       mem_rdata<={memory[mem_addr+3],memory[mem_addr+2],memory[mem_addr+1],memory[mem_addr]};
      end else begin
-      read_pending=1;pending_addr=mem_addr;pending_delay=service_count%4;
+      read_pending=1;pending_addr=mem_addr;
+      pending_delay=fixed_memory ? read_latency-2 : service_count%4;
      end
      read_count=read_count+1;
     end
    end
    if(active && dut.done && (write_count!=16*task_m || mem_valid || dut.rd_pending ||
       dut.live!=0 || dut.raw_valid!=0 || dut.raw_reserved!=0 || dut.q_result_valid ||
-      dut.mac_busy || dut.mac_valid))
+      dut.mac_busy || dut.mac_valid || dut.spad_active || dut.spad_rvalid))
     $fatal(1,"early DONE before pipeline drain and final write commit");
    if(active && dut.live==2'b11) two_live_seen=1;
    if((dut.raw_valid[0]+dut.raw_valid[1]+dut.raw_reserved[0]+dut.raw_reserved[1])>2)
@@ -165,6 +182,8 @@ module tb_accel;
   $readmemh("build/vectors/m_values.hex",case_m,0,ncases-1);
   if($test$plusargs("P1_ONLY")) begin p1_only=1;ncases=2;end
   fixed_memory=$test$plusargs("FIXED_MEMORY");
+  if($value$plusargs("READ_LATENCY=%d",read_latency)) begin end
+  latency_limit=$test$plusargs("SWEEP_LATENCY") ? 8 : read_latency;
   vcd_trace=$test$plusargs("VCD_TRACE");
   summary=$fopen(fixed_memory ? "build/fixed_results.csv" : "build/results.csv","w");
   steady_summary=$fopen(fixed_memory ? "build/fixed_steady.csv" : "build/steady.csv","w");
@@ -174,7 +193,7 @@ module tb_accel;
    trace=$fopen(fixed_memory ? "build/fixed_trace.csv" : "build/variable_trace.csv","w");
    $fwrite(trace,"cycle,state,kind,addr,valid,ready,write,response,pending\n");
   end
-  $fwrite(summary,"case,M,mode,cycles,read_requests,write_requests,clock_edges\n");
+  $fwrite(summary,"case,M,mode,cycles,read_requests,write_requests,clock_edges,read_latency,cache_reads,cache_writes\n");
   $fwrite(steady_summary,"case,M,mode,tile,first_block_commit,last_block_commit,interval_sum,interval_count\n");
   repeat(5) @(negedge clk);rst_n=1;
   rd('h04,status);if(status!==0) $fatal(1,"reset status=%h",status);
@@ -198,13 +217,30 @@ module tb_accel;
    $fatal(1,"quantization result survived reset");
 
   // Reset at a continuation offer for word 15, while word 14 returns.
-  configure(1,1);wr('h00,1);
-  for(int elapsed=0; elapsed<20000 && !(dut.input_follow && dut.rd_index==14); elapsed++)
-   @(negedge clk);
-  if(!dut.input_follow || dut.rd_index!=14) $fatal(1,"word-15 reset point not reached");
-  rst_n=0;repeat(3) @(negedge clk);rst_n=1;
-  rd('h04,status);
-  if(status!==0 || mem_valid || dut.rd_pending) $fatal(1,"continuation survived reset");
+  if(TURNAROUND) begin
+   configure(1,1);wr('h00,1);
+   for(int elapsed=0; elapsed<20000 && !(dut.input_follow && dut.rd_index==14); elapsed++)
+    @(negedge clk);
+   if(!dut.input_follow || dut.rd_index!=14) $fatal(1,"word-15 reset point not reached");
+   rst_n=0;repeat(3) @(negedge clk);rst_n=1;
+   rd('h04,status);
+   if(status!==0 || mem_valid || dut.rd_pending) $fatal(1,"continuation survived reset");
+  end
+  // A reset leaves old BRAM bits intact. The following fixture must replace them.
+  if(INPUT_CACHE) begin
+   memory['h1000]=memory['h1000]^8'hff;
+   configure(1,1);wr('h00,1);
+   for(int elapsed=0; elapsed<20000 && !(dut.spad_write && dut.rd_index==5); elapsed++)
+    @(negedge clk);
+   if(!dut.spad_write || dut.rd_index!=5) $fatal(1,"partial fill reset point not reached");
+   rst_n=0;repeat(3) @(negedge clk);rst_n=1;
+   rd('h04,status);
+   if(status!==0 || mem_valid || dut.rd_pending || dut.spad_active || dut.spad_rvalid)
+    $fatal(1,"cache control survived partial fill reset");
+   $display("PASS RTL reset during partial scratchpad fill");
+  end
+  for(int latency_point=read_latency;latency_point<=latency_limit;latency_point*=2) begin
+  read_latency=latency_point;
   for(case_id=0;case_id<ncases;case_id=case_id+1) begin
    for(mode_id=0;mode_id<(p1_only?1:2);mode_id=mode_id+1) begin
     task_m=case_m[case_id];
@@ -217,6 +253,7 @@ module tb_accel;
     port_stall=0;response_wait=0;idle_other=0;
     previous_live=0;committed_release=0;
     follow_accepts=0;follow_stalls=0;weight_commits=0;
+    cache_reads=0;cache_writes=0;filled_words='0;
     for(i=0;i<8;i=i+1) begin first_block[i]=0;last_block[i]=0;end
     configure(task_m,mode_id);
     service_count=0;
@@ -244,9 +281,13 @@ module tb_accel;
     if(!fixed_memory && !hold_seen) $fatal(1,"final-write backpressure not reached");
     if(!fixed_memory && task_m>1 && early_hold!=96) $fatal(1,"early finite write stall not reached");
     if(task_m>1 && mode_id==1 && !two_live_seen) $fatal(1,"two live contexts were never exercised");
-    if(read_count!=8*(152+16*task_m) || macro_count!=16*task_m)
+    if(read_count!=8*152+(INPUT_CACHE ? 1 : 8)*16*task_m || macro_count!=16*task_m ||
+       cache_writes!=(INPUT_CACHE ? 16*task_m : 0) ||
+       cache_reads!=(INPUT_CACHE ? 7*16*task_m : 0))
      $fatal(1,"service count mismatch reads=%0d macros=%0d",read_count,macro_count);
-    if(weight_commits!=8*64 || follow_accepts==0 || (!fixed_memory && follow_stalls==0))
+    if(weight_commits!=8*64 ||
+       (TURNAROUND && (follow_accepts==0 || (!fixed_memory && follow_stalls==0))) ||
+       (!TURNAROUND && follow_accepts!=0))
      $fatal(1,"missing weight/continuation coverage weights=%0d follow=%0d stalls=%0d",
             weight_commits,follow_accepts,follow_stalls);
     for(i=0;i<64*task_m;i=i+1) begin
@@ -255,7 +296,8 @@ module tb_accel;
     end
     rd('h20,status);cycles_result=status;
     $display("PASS RTL case=%0d M=%0d mode=%0d outputs=%0d cycles=%0d reads=%0d writes=%0d",case_id,task_m,mode_id,64*task_m,cycles_result,read_count,write_count);
-    $fwrite(summary,"%0d,%0d,%0d,%0d,%0d,%0d,%0d\n",case_id,task_m,mode_id,cycles_result,read_count,write_count,clock_count);
+    $fwrite(summary,"%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d\n",case_id,task_m,mode_id,
+            cycles_result,read_count,write_count,clock_count,fixed_memory ? read_latency : 0,cache_reads,cache_writes);
     $fwrite(profile,"%0d,%0d,%0d,%0d,%0d,%0d\n",case_id,task_m,mode_id,port_stall,response_wait,idle_other);
     if(vcd_trace && case_id==0 && mode_id==0) $dumpoff;
     if(task_m>1) for(i=0;i<8;i=i+1)
@@ -268,6 +310,7 @@ module tb_accel;
     end
     active=0;
    end
+  end
   end
   for(int bad=0; bad<2; bad++) begin
    $readmemh("build/vectors/mem0.hex",memory);

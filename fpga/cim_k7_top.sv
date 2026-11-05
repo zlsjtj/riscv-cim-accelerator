@@ -1,5 +1,8 @@
 `timescale 1ns/1ps
-module cim_k7_top (
+module cim_k7_top #(
+    parameter bit TURNAROUND=1,
+    parameter bit INPUT_CACHE=0
+) (
     input wire clk_p, clk_n,
     output wire uart_tx
 );
@@ -25,7 +28,7 @@ module cim_k7_top (
 
     wire tx_start, tx_busy;
     wire [7:0] tx_data;
-    cim_rv_system system (
+    cim_rv_system #(.TURNAROUND(TURNAROUND), .INPUT_CACHE(INPUT_CACHE)) system (
         .clk(clk), .rst_n(system_run), .tx_busy(tx_busy),
         .tx_start(tx_start), .tx_data(tx_data)
     );

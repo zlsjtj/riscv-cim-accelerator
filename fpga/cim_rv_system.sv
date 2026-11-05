@@ -2,7 +2,9 @@
 // Adapter for the existing JYDD myCPU registered peripheral interface.
 module cim_rv_system #(
     parameter ROM_FILE = "firmware.mem",
-    parameter RAM_FILE = "sram.mem"
+    parameter RAM_FILE = "sram.mem",
+    parameter bit TURNAROUND=1,
+    parameter bit INPUT_CACHE=0
 ) (
     input logic clk, rst_n,
     input logic tx_busy,
@@ -16,6 +18,7 @@ module cim_rv_system #(
     localparam logic [31:0] RESET_CONTROL = 32'h8020110c;
     localparam logic [31:0] RESET_STATUS = 32'h80201110;
     localparam logic [31:0] RESET_WRITES = 32'h80201114;
+    localparam logic [31:0] SW_TIMER = 32'h80201118;
 
     logic reset_armed, warm_reset;
     logic [1:0] reset_epoch;
@@ -60,8 +63,10 @@ module cim_rv_system #(
     logic mem_rvalid;
     logic [31:0] port_b_rdata;
     logic [31:0] committed_writes;
+    logic sw_active;
+    logic [31:0] sw_cycles;
 
-    cim_accel accel (
+    cim_accel #(.TURNAROUND(TURNAROUND), .INPUT_CACHE(INPUT_CACHE)) accel (
         .clk(clk), .rst_n(run_n), .cfg_valid(cim_select),
         .cfg_write(cfg_write), .cfg_addr(cfg_addr), .cfg_wdata(cpu_wdata),
         .cfg_ready(), .cfg_rdata(cfg_rdata), .start_accepted(start_accepted),
@@ -107,6 +112,8 @@ module cim_rv_system #(
             cpu_mmio_rdata = {28'd0, interrupted_status};
         else if (cpu_addr == RESET_WRITES)
             cpu_mmio_rdata = interrupted_writes;
+        else if (cpu_addr == SW_TIMER)
+            cpu_mmio_rdata = sw_cycles;
     end
 
     // Retain the event record across a warm reset. Firmware arms the event
@@ -143,9 +150,17 @@ module cim_rv_system #(
             cpu_store <= 1'b0;
             mem_rvalid <= 1'b0;
             committed_writes <= '0;
+            sw_active <= 1'b0;
+            sw_cycles <= '0;
             tx_start <= 1'b0;
             tx_data <= '0;
         end else begin
+            if (sw_active)
+                sw_cycles <= sw_cycles + 1'b1;
+            if (cpu_wen && cpu_mask == 2'b10 && cpu_addr == SW_TIMER) begin
+                sw_active <= cpu_wdata[0];
+                if (cpu_wdata[0]) sw_cycles <= '0;
+            end
             cpu_store <= cpu_wen && cpu_addr[31:16] == 16'h8010;
             if (cpu_wen && cpu_addr[31:16] == 16'h8010) begin
                 cpu_store_word <= cpu_addr[15:2];

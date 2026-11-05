@@ -1,6 +1,9 @@
 `timescale 1ns/1ps
 // Original portable digital peripheral. Local reads return >=1 clock after acceptance.
-module cim_accel (
+module cim_accel #(
+ parameter bit TURNAROUND=1,
+ parameter bit INPUT_CACHE=0
+) (
  input logic clk, rst_n,
  input logic cfg_valid, cfg_write,
  input logic [7:0] cfg_addr,
@@ -44,6 +47,9 @@ module cim_accel (
  logic [7:0] position[0:1];
  logic [4:0] fill_word[0:1];
  logic [255:0] input_low[0:1],input_high[0:1];
+ logic spad_active, spad_ctx, spad_rvalid, spad_result_ctx;
+ logic [3:0] spad_index, spad_result_index;
+ logic [31:0] spad_rdata;
  logic signed [31:0] partial[0:1][0:7];
  logic [63:0] output_bytes[0:1];
  logic [3:0] quant_index[0:1];
@@ -72,9 +78,17 @@ module cim_accel (
  // Only offer the next word of the same context, with ready writes taking
  // precedence. If stalled, the ordinary request registers hold the offer.
  wire read_return = rd_pending && mem_rvalid;
- wire input_follow = rst_n && !request_valid && read_return && state==RUN &&
+ wire input_follow = TURNAROUND && rst_n && !request_valid && read_return && state==RUN &&
                      rd_kind==RD_INPUT && rd_index<15 && output_ready==0;
  wire read_accept = mem_valid && mem_ready && !mem_write;
+ wire external_input = read_return && rd_kind==RD_INPUT;
+ wire spad_write = INPUT_CACHE && rst_n && external_input && tile==0;
+ wire spad_read = INPUT_CACHE && rst_n && spad_active;
+ wire [10:0] spad_addr = spad_write ? {position[rd_ctx][6:0], rd_index[3:0]} :
+                                      {position[spad_ctx][6:0], spad_index};
+ wire input_ctx = spad_rvalid ? spad_result_ctx : rd_ctx;
+ wire [3:0] input_index = spad_rvalid ? spad_result_index : rd_index[3:0];
+ wire [31:0] input_data = spad_rvalid ? spad_rdata : mem_rdata;
  assign mem_valid = request_valid || input_follow;
  assign mem_addr = input_follow ? rd_next_addr : request_addr;
 
@@ -83,6 +97,39 @@ module cim_accel (
   .a_plane(a_plane),.busy(mac_busy),.result_valid(mac_valid),.result_data(mac_data));
  requant quant_unit(.clk(clk),.enable(q_valid),.acc(q_acc),
   .multiplier(q_mul),.shift(q_shift),.value(q_value));
+
+ if(INPUT_CACHE) begin : cache
+  (* ram_style = "block" *) logic [31:0] input_spad[0:2047];
+  // The first tile overwrites all words used by a task before any replay.
+  // The response uses the old external tag, including with read turnaround.
+  always_ff @(posedge clk) begin
+   if(spad_write) input_spad[spad_addr]<=mem_rdata;
+   else if(spad_read) spad_rdata<=input_spad[spad_addr];
+  end
+  always_ff @(posedge clk) begin
+   if(!rst_n) begin
+    spad_active<=0;spad_ctx<=0;spad_index<=0;
+    spad_rvalid<=0;spad_result_ctx<=0;spad_result_index<=0;
+   end else begin
+    spad_rvalid<=spad_read;
+    if(spad_read) begin
+     spad_result_ctx<=spad_ctx;
+     spad_result_index<=spad_index;
+     spad_index<=spad_index+1'b1;
+     if(spad_index==15) spad_active<=0;
+    end else if(state==RUN && tile!=0) begin
+     // Exclude the context of the last word still in the return stage.
+     if(live[0] && !input_ready[0] && !(spad_rvalid && !spad_result_ctx)) begin
+      spad_active<=1;spad_ctx<=0;spad_index<=0;
+     end else if(live[1] && !input_ready[1] && !(spad_rvalid && spad_result_ctx)) begin
+      spad_active<=1;spad_ctx<=1;spad_index<=0;
+     end
+    end
+   end
+  end
+ end else begin : no_cache
+  assign {spad_active,spad_ctx,spad_index,spad_rvalid,spad_result_ctx,spad_result_index,spad_rdata}='0;
+ end
 
  always_comb begin
   cfg_ready=1'b1;
@@ -193,7 +240,7 @@ module cim_accel (
     rd_kind<=input_follow ? RD_INPUT : req_kind;
     rd_ctx<=input_follow ? rd_ctx : req_ctx;
     rd_index<=input_follow ? rd_index+1'b1 : req_index;
-    if(input_follow || req_kind==RD_INPUT) rd_next_addr<=mem_addr+32'd4;
+    if(TURNAROUND && (input_follow || req_kind==RD_INPUT)) rd_next_addr<=mem_addr+32'd4;
    end
    if(mem_valid && mem_ready && mem_write) begin
      if(req_last) begin
@@ -226,16 +273,16 @@ module cim_accel (
       if(!rd_index[0]) weight_low<=mem_rdata;
       else begin w_valid<=1;w_row<=rd_index[6:1];w_data<={mem_rdata,weight_low};end
      end
-     RD_INPUT: begin
-      for(k=0;k<4;k=k+1) begin
-       input_low[rd_ctx][(rd_index*4+k)*4 +:4]<=mem_rdata[k*8 +:4];
-       input_high[rd_ctx][(rd_index*4+k)*4 +:4]<={~mem_rdata[k*8+7],mem_rdata[k*8+4 +:3]};
-      end
-      fill_word[rd_ctx]<=fill_word[rd_ctx]+1;
-      if(rd_index==15) input_ready[rd_ctx]<=1;
-     end
      default: ;
     endcase
+   end
+   if(external_input || spad_rvalid) begin
+    for(k=0;k<4;k=k+1) begin
+     input_low[input_ctx][(input_index*4+k)*4 +:4]<=input_data[k*8 +:4];
+     input_high[input_ctx][(input_index*4+k)*4 +:4]<={~input_data[k*8+7],input_data[k*8+4 +:3]};
+    end
+    fill_word[input_ctx]<=fill_word[input_ctx]+1;
+    if(input_index==15) input_ready[input_ctx]<=1;
    end
 
    // One shared 32-bit port; at most one outstanding read and a reserved destination.
@@ -259,7 +306,8 @@ module cim_accel (
        mem_wdata<=output_bytes[1][write_index[1]*32 +:32];
       end
       request_valid<=1;mem_write<=1;mem_wstrb<=4'hf;
-     end else if((live[0] && !input_ready[0]) || (live[1] && !input_ready[1])) begin
+     end else if((!INPUT_CACHE || tile==0) &&
+                 ((live[0] && !input_ready[0]) || (live[1] && !input_ready[1]))) begin
       request_valid<=1;mem_write<=0;mem_wstrb<=0;req_kind<=RD_INPUT;
       if(live[0] && !input_ready[0]) begin
        req_ctx<=0;req_index<={3'b0,fill_word[0]};
@@ -316,7 +364,8 @@ module cim_accel (
      if(q_result_channel==7) output_ready[q_result_ctx]<=1;
     end
     if(next_p==task_m && live==0 && raw_valid==0 && raw_reserved==0 &&
-       !mac_busy && !mac_valid && !mem_valid && !rd_pending && !q_result_valid) begin
+       !mac_busy && !mac_valid && !mem_valid && !rd_pending && !q_result_valid &&
+       !spad_active && !spad_rvalid) begin
      if(tile==7) begin busy<=0;done<=1;state<=IDLE;end
      else begin tile<=tile+1;load_word<=0;state<=PARAM;next_p<=0;end
     end

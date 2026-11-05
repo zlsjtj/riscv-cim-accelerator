@@ -7,6 +7,7 @@
 #define RESET_CONTROL UINT32_C(0x8020110c)
 #define RESET_STATUS  UINT32_C(0x80201110)
 #define RESET_WRITES  UINT32_C(0x80201114)
+#define SW_TIMER      UINT32_C(0x80201118)
 #define A_BASE        UINT32_C(0x80101000)
 #define W_BASE        UINT32_C(0x80104000)
 #define P_BASE        UINT32_C(0x80106000)
@@ -15,6 +16,10 @@
 #define W_FIXTURE     UINT32_C(0x8010c000)
 #define P_FIXTURE     UINT32_C(0x8010d000)
 #define Y_GOLDEN      UINT32_C(0x8010d400)
+
+void cim_sw_pointwise(unsigned m, const uint8_t *restrict input,
+                      const int8_t *restrict weights, const int32_t *restrict params,
+                      uint32_t *restrict output);
 
 static uint32_t read_word(uint32_t address) {
     return *(volatile const uint32_t *)(uintptr_t)address;
@@ -62,8 +67,7 @@ static void print_hex(uint32_t value) {
     }
 }
 
-static int submit_task(const cim_device *dev, uint32_t m, uint32_t mode) {
-    const cim_task task = {m, A_BASE, W_BASE, P_BASE, Y_BASE, mode};
+static void prepare_task(uint32_t m) {
     uint32_t bytes = m << 6;
     // Every byte differs from golden until the accelerator writes it. Copy
     // the inputs afterwards so recent CPU stores cannot forward old Y data.
@@ -72,13 +76,48 @@ static int submit_task(const cim_device *dev, uint32_t m, uint32_t mode) {
     copy_words(A_BASE, A_FIXTURE, bytes);
     copy_words(W_BASE, W_FIXTURE, 4096);
     copy_words(P_BASE, P_FIXTURE, 768);
+}
+
+static int submit_task(const cim_device *dev, uint32_t m, uint32_t mode) {
+    const cim_task task = {m, A_BASE, W_BASE, P_BASE, Y_BASE, mode};
+    prepare_task(m);
     return cim_submit(dev, &task);
+}
+
+static uint32_t count_mismatches(uint32_t bytes) {
+    uint32_t mismatches = 0;
+    for (uint32_t offset = 0; offset < bytes; offset += 4) {
+        uint32_t difference = read_word(Y_BASE + offset) ^ read_word(Y_GOLDEN + offset);
+        for (unsigned lane = 0; lane < 4; ++lane) {
+            mismatches += (difference & 255u) != 0;
+            difference >>= 8;
+        }
+    }
+    return mismatches;
+}
+
+static int run_software(uint32_t m) {
+    prepare_task(m);
+    write_word(SW_TIMER, 1);
+    visibility(0);
+    cim_sw_pointwise(m, (const uint8_t *)(uintptr_t)A_BASE,
+                     (const int8_t *)(uintptr_t)W_BASE, (const int32_t *)(uintptr_t)P_BASE,
+                     (uint32_t *)(uintptr_t)Y_BASE);
+    visibility(0);
+    write_word(SW_TIMER, 0);
+    uint32_t cycles = read_word(SW_TIMER);
+    uint32_t mismatches = count_mismatches(m << 6);
+    print("CPU_RESULT ");
+    print_hex(m); print_char(' ');
+    print_hex(cycles); print_char(' ');
+    print_hex(m << 6); print_char(' ');
+    print_hex(mismatches); print_char('\n');
+    return !cycles || mismatches != 0;
 }
 
 static int run_task(const cim_device *dev, uint32_t m, uint32_t mode) {
     uint32_t bytes = m << 6;
     uint32_t cycles = 0;
-    uint32_t mismatches = 0;
     int status = submit_task(dev, m, mode);
     if (status == CIM_OK)
         status = cim_wait(dev, 1000000, &cycles);
@@ -88,13 +127,7 @@ static int run_task(const cim_device *dev, uint32_t m, uint32_t mode) {
         print("\n");
         return 1;
     }
-    for (uint32_t offset = 0; offset < bytes; offset += 4) {
-        uint32_t difference = read_word(Y_BASE + offset) ^ read_word(Y_GOLDEN + offset);
-        for (unsigned lane = 0; lane < 4; ++lane) {
-            mismatches += (difference & 255u) != 0;
-            difference >>= 8;
-        }
-    }
+    uint32_t mismatches = count_mismatches(bytes);
     uint32_t writes = read_word(COMMITTED);
     print("CIM_RESULT ");
     print_hex(mode); print_char(' ');
@@ -157,15 +190,18 @@ int main(void) {
     static const cim_device dev = {0, cfg_read, cfg_write, visibility, visibility};
     uint32_t epoch = read_word(RESET_CONTROL);
     if (epoch == 0) {
-        print("CIM_BOOT RV32I tensor23 reset\n");
+        print("CIM_BOOT RV32IM tensor23 scratchpad\n");
         interrupt_task(&dev, 0);
     } else if (epoch <= 2 && !verify_reset(epoch - 1) &&
                !run_task(&dev, 125, epoch - 1) && !run_task(&dev, 1, epoch - 1)) {
         if (epoch == 2) {
-            print("CIM_PASS\n");
-            return 0;
+            if (!run_software(1) && !run_software(125)) {
+                print("CIM_PASS\n");
+                return 0;
+            }
+        } else {
+            interrupt_task(&dev, 1);
         }
-        interrupt_task(&dev, 1);
     }
     print("CIM_FAIL\n");
     return 1;

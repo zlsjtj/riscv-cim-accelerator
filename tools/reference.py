@@ -120,7 +120,8 @@ def generate(dataset="synthetic"):
             or activation_metadata['model_sha256']!=hashlib.sha256((ROOT/'build/deps/kws_ref_model.tflite').read_bytes()).hexdigest()
             or activation_metadata['host_layer_check']['status']!='PASS'):
             raise ValueError('Intermediate activation/model/provenance mismatch; re-export before RTL regression')
-    cases = [make_case(0, 1), make_case(1, 125), make_case(2, 1), make_case(3, 125)]
+    sizes = (1, 8, 32, 125) if dataset == "matrix" else (1, 125, 1, 125)
+    cases = [make_case(index, m) for index, m in enumerate(sizes)]
     if model:
         # Preserve the established real-weight/synthetic-input cases as controls.
         cases += [make_case(4, 125, model), make_case(5, 1, model)]
@@ -132,8 +133,9 @@ def generate(dataset="synthetic"):
                 case['input_rows']='all 125 rows' if case['M']==125 else 'first spatial row (p=0)'
     # Append scheduler boundaries while retaining stable indices of the
     # existing synthetic and model fixtures used in earlier evidence.
-    for m in (2, 3, 124):
-        cases.append(make_case(len(cases), m))
+    if dataset != "matrix":
+        for m in (2, 3, 124):
+            cases.append(make_case(len(cases), m))
     (ROOT/'build/vectors/cases.json').write_text(json.dumps(cases, indent=2))
     (ROOT/'build/vectors/m_values.hex').write_text('\n'.join(f'{c["M"]:02x}' for c in cases)+'\n')
     print('REFERENCE generated', cases)

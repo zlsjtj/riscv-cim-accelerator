@@ -1,9 +1,10 @@
 # Invoke from the output directory with the firmware, SRAM and staged CPU include.
-if {$argc != 1} {error "Usage: build_k7.tcl LOCAL_CPU_SOURCE_ROOT"}
-set cpu [file normalize [lindex $argv 0]]
+if {$argc != 4} {error "Usage: build_k7.tcl LOCAL_CPU_SOURCE_ROOT TURNAROUND INPUT_CACHE USR_ACCESS"}
+lassign $argv cpu turn cache usr_access
+set cpu [file normalize $cpu]
 set root [file normalize [file join [file dirname [info script]] ..]]
 set part xc7k325tffg900-2
-set_param general.maxThreads 8
+set_param general.maxThreads 4
 create_project -in_memory -part $part
 if {![file isfile cpu_include/myCPU_m_ext.sv]} {error "Run k7.py prepare first"}
 set_property include_dirs [list [file normalize cpu_include] [file join $cpu common]] [current_fileset]
@@ -16,7 +17,7 @@ foreach name {myCPU uart} {
 read_verilog -sv [glob [file join $root rtl *.sv]]
 read_verilog -sv [list [file join $root fpga cim_rv_system.sv] [file join $root fpga cim_k7_top.sv]]
 read_xdc [file join $root fpga cim_k7.xdc]
-synth_design -top cim_k7_top -part $part
+synth_design -top cim_k7_top -part $part -generic [list TURNAROUND=$turn INPUT_CACHE=$cache]
 report_clocks -file clocks.rpt
 report_utilization -hierarchical -file synth_utilization.rpt
 report_timing_summary -file synth_timing.rpt
@@ -44,7 +45,11 @@ set drc_file [open drc.rpt r]
 set drc_text [read $drc_file]
 close $drc_file
 if {[regexp -line {^REQP-1839#} $drc_text]} {error "Asynchronous BRAM control warning remains"}
-set_property BITSTREAM.CONFIG.USERID 0x43494D36 [current_design]
-set_property BITSTREAM.CONFIG.USR_ACCESS 0x43494D36 [current_design]
+set spad_brams [llength [get_cells -quiet -hier -filter {REF_NAME == RAMB36E1 && NAME =~ *input_spad*}]]
+set next_addr_ffs [llength [get_cells -quiet -hier -filter {REF_NAME =~ FD* && NAME =~ *rd_next_addr_reg*}]]
+puts "K7_STRUCTURES SPAD_RAMB36=$spad_brams NEXT_ADDR_FFS=$next_addr_ffs"
+if {$spad_brams != 2*$cache || ($next_addr_ffs > 0) != $turn} {error "Variant structures disagree with the configuration"}
+set_property BITSTREAM.CONFIG.USERID 0x$usr_access [current_design]
+set_property BITSTREAM.CONFIG.USR_ACCESS 0x$usr_access [current_design]
 write_bitstream -force cim_k7.bit
 puts "K7_BITSTREAM_READY"

@@ -1,5 +1,5 @@
 `timescale 1ns/1ps
-module tb_rv_system;
+module tb_rv_system #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
     logic clk = 1'b0, rst_n = 1'b0;
     always #10 clk = ~clk;
     wire tx_start;
@@ -8,7 +8,10 @@ module tb_rv_system;
     string line = "";
     int reset_count = 0;
     logic was_reset = 1'b0;
-    cim_rv_system dut (
+    int software_runs, software_output_words, last_software_commit;
+    int shared_reads, shared_writes, local_reads, local_writes, traffic_file;
+    logic was_done;
+    cim_rv_system #(.TURNAROUND(TURNAROUND), .INPUT_CACHE(INPUT_CACHE)) dut (
         .clk(clk), .rst_n(rst_n), .tx_busy(busy_cycles != 0),
         .tx_start(tx_start), .tx_data(tx_data)
     );
@@ -98,6 +101,35 @@ module tb_rv_system;
     end
     always @(posedge clk) begin
         was_reset <= dut.warm_reset;
+        was_done <= dut.accel.done;
+        if (!dut.run_n || dut.start_accepted) begin
+            shared_reads=0; shared_writes=0; local_reads=0; local_writes=0;
+        end else begin
+            if (dut.cim_access && !dut.mem_write) shared_reads++;
+            if (dut.cim_access && dut.mem_write) shared_writes++;
+            if (dut.accel.spad_read) local_reads++;
+            if (dut.accel.spad_write) local_writes++;
+            if (traffic_file && dut.accel.done && !was_done)
+                $fdisplay(traffic_file, "%0d,%0d,%0d,%0d,%0d,%0d,%0d", dut.accel.mode,
+                          dut.accel.task_m, dut.accel.cycles, shared_reads, shared_writes, local_reads, local_writes);
+        end
+        if (dut.sw_active && dut.cpu_store && dut.cpu_store_word >= 14'h2000 &&
+            dut.cpu_store_word < 14'h27d0) begin
+            software_output_words++;
+            last_software_commit = dut.sw_cycles+1;
+        end
+        if (dut.run_n && dut.cpu_wen && dut.cpu_mask == 2'b10 && dut.cpu_addr == dut.SW_TIMER) begin
+            if (dut.cpu_wdata[0]) begin
+                software_output_words=0;
+                last_software_commit=0;
+            end else begin
+                if (!dut.sw_active || software_output_words != (software_runs==0 ? 16 : 2000))
+                    $fatal(1, "Software timer stopped before all SRAM output commits");
+                software_runs++;
+                $display("CPU_TIMER last_commit_to_stop_cycles=%0d words=%0d",
+                         dut.sw_cycles+1-last_software_commit, software_output_words);
+            end
+        end
         if (dut.warm_reset) begin
             if (!dut.accel.busy || !dut.accel.rd_pending || !dut.mem_rvalid ||
                 dut.run_n || dut.cim_access)
@@ -116,6 +148,8 @@ module tb_rv_system;
                 $display("%s", line);
                 if (line == "CIM_PASS") begin
                     if (reset_count != 2) $fatal(1, "Expected two warm resets");
+                    if (software_runs != 2) $fatal(1, "Expected two complete software timer windows");
+                    $fclose(traffic_file);
                     $finish;
                 end
                 if (line == "CIM_FAIL") $fatal(1, "RV32I comparison failed");
@@ -126,6 +160,11 @@ module tb_rv_system;
     end
     initial begin
         counter_test = $test$plusargs("TEST_START_COUNTER");
+        if (!counter_test) begin
+            traffic_file = $fopen("traffic.csv", "w");
+            if (!traffic_file) $fatal(1, "Cannot open traffic.csv");
+            $fdisplay(traffic_file, "mode,M,cycles,shared_reads,shared_writes,cache_reads,cache_writes");
+        end
         test_addr=0; test_data=0; test_wen=0;
         repeat (8) @(negedge clk);
         rst_n = 1'b1;

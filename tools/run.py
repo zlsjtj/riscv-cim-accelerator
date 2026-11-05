@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from reference import ROOT, generate
 from check_reference import check
+from variants import DEFAULT_VARIANT, VARIANTS
 
 
 def command(args, log):
@@ -19,7 +20,7 @@ def command(args, log):
     return result.stdout
 
 
-def simulate(sim, top, plusargs, compile_log, simulation_log):
+def simulate(sim, top, plusargs, compile_log, simulation_log, generics=()):
     sources = ['rtl/cim_macro.sv', 'rtl/requant.sv']
     if top == 'tb_accel':
         sources.append('rtl/cim_accel.sv')
@@ -29,18 +30,21 @@ def simulate(sim, top, plusargs, compile_log, simulation_log):
         if not (ROOT/'build/work').exists():
             command([questa/'vlib.exe', 'build/work'], 'vlib.log')
         command([questa/'vlog.exe', '-sv', '-work', 'build/work', *sources], compile_log)
-        return command([questa/'vsim.exe', '-c', '-lib', 'build/work', top, *plusargs,
+        return command([questa/'vsim.exe', '-c', '-lib', 'build/work',
+                        *(f'-g{arg}' for arg in generics), top, *plusargs,
                         '-do', 'onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0'],
                        simulation_log)
     if sim == 'xsim':
         vivado = Path(os.environ.get('VIVADO_BIN', 'E:/Xilinx/Vivado/2023.2/bin'))
         command([vivado/'xvlog.bat', '--sv', *sources], compile_log)
-        command([vivado/'xelab.bat', top, '--snapshot', top, '--timescale', '1ns/1ps'],
+        overrides = [item for arg in generics for item in ('--generic_top', arg)]
+        command([vivado/'xelab.bat', top, '--snapshot', top, '--timescale', '1ns/1ps', *overrides],
                 f'{top}_elaborate.log')
         testargs = [item for arg in plusargs for item in ('--testplusarg', arg[1:])]
         return command([vivado/'xsim.bat', top, '--runall', *testargs], simulation_log)
     binary = f'build/{top}.vvp'
-    command(['iverilog', '-g2012', '-s', top, '-o', binary, *sources], compile_log)
+    command(['iverilog', '-g2012', '-s', top, '-o', binary,
+             *(f'-P{top}.{arg}' for arg in generics), *sources], compile_log)
     return command(['vvp', binary, *plusargs], simulation_log)
 
 
@@ -50,10 +54,14 @@ def main():
     ap.add_argument('--reference-only',action='store_true')
     ap.add_argument('--p1-only',action='store_true',help='blocking M=1/125, separate P1 evidence log')
     ap.add_argument('--memory', choices=['variable','fixed'], default='variable',
-                    help='variable waits/backpressure, or one-cycle reads and always ready')
+                    help='variable waits/backpressure, or fixed-latency reads and always ready')
+    ap.add_argument('--variant', choices=VARIANTS, default=DEFAULT_VARIANT)
+    latency = ap.add_mutually_exclusive_group()
+    latency.add_argument('--read-latency', type=int, choices=(1, 2, 4, 8))
+    latency.add_argument('--sweep-latency', action='store_true', help='test fixed latencies 1, 2, 4 and 8')
     ap.add_argument('--trace-memory', action='store_true', help='log the first task per-edge')
     inputs = ap.add_mutually_exclusive_group()
-    inputs.add_argument('--dataset', choices=['synthetic','model','real'], default='synthetic',
+    inputs.add_argument('--dataset', choices=['synthetic','model','real','matrix'], default='synthetic',
                         help='explicit fixture set; real requires a verified tensor23 export')
     inputs.add_argument('--model', dest='dataset', action='store_const', const='model',
                         help='alias for --dataset model (model weights, synthetic inputs)')
@@ -62,10 +70,13 @@ def main():
     ap.add_argument('--tf-python',help='isolated TensorFlow2.16.1 Python (default build/tf_env interpreter)')
     ap.add_argument('--skip-official-check',action='store_true',help='only for diagnosing the simulator; normal regression checks official reference')
     args=ap.parse_args()
+    if args.memory != 'fixed' and (args.read_latency or args.sweep_latency):
+        ap.error('latency options require --memory fixed')
     (ROOT/'build').mkdir(exist_ok=True)
     dataset = 'real' if args.real_activations else args.dataset
     print(f'Dataset: {dataset}', flush=True)
-    if dataset != 'synthetic':
+    use_model = dataset in ('model', 'real')
+    if use_model:
         from export_model import export
         export()
     if args.real_activations:
@@ -81,7 +92,7 @@ def main():
         (ROOT/'build/reference.log').write_text(notice + '\n', encoding='utf-8')
         print(notice, flush=True)
     else:
-        check(use_model=dataset != 'synthetic')
+        check(use_model=use_model)
     cases=generate(dataset)
     if args.reference_only:return
     questa=os.environ.get('QUESTA_BIN','E:/questasim64_2024.1/win64')
@@ -96,12 +107,18 @@ def main():
     prefix = 'fixed_' if args.memory == 'fixed' else ''
     if args.memory == 'fixed':
         plusargs.append('+FIXED_MEMORY')
+        if args.sweep_latency:
+            plusargs.append('+SWEEP_LATENCY')
+        elif args.read_latency:
+            plusargs.append(f'+READ_LATENCY={args.read_latency}')
     if args.trace_memory:
         plusargs.append('+TRACE_MEMORY')
         if sim == 'iverilog':
             plusargs.append('+VCD_TRACE')
+    turn, cache, _ = VARIANTS[args.variant]
     output = simulate(sim, 'tb_accel', plusargs, 'compile.log',
-                      prefix + ('p1_simulation.log' if args.p1_only else 'simulation.log'))
+                      prefix + ('p1_simulation.log' if args.p1_only else 'simulation.log'),
+                      (f'TURNAROUND={turn}', f'INPUT_CACHE={cache}'))
     if 'PASS ALL RTL' not in output:raise RuntimeError('Simulator did not reach complete RTL PASS')
     if args.p1_only:
         shutil.copyfile(ROOT/f'build/{prefix}results.csv',ROOT/f'build/{prefix}p1_results.csv')

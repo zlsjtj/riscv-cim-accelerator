@@ -11,12 +11,11 @@ import time
 from pathlib import Path
 
 from reference import ROOT, generate
+from variants import DEFAULT_VARIANT, VARIANTS
 
-OUT = ROOT / "build/k7_sram_ii1"
 CPU = ("RF", "Control", "IMMGEN", "CCTL", "ALU", "ACTL", "CSR")
 INCLUDES = ("defines", "myCPU_units", "myCPU_m_ext", "myCPU_bitmanip")
 EXPECTED = [(0, 125), (0, 1), (1, 125), (1, 1)]
-USR_ACCESS = "43494d36"
 
 
 def run(command, log):
@@ -98,12 +97,12 @@ def prepare(source, tools):
     cc = tools / "riscv-none-elf-gcc.exe"
     copy = tools / "riscv-none-elf-objcopy.exe"
     run([cc, "--version"], "gcc_version.log")
-    run([cc, "-march=rv32i", "-mabi=ilp32", "-Os", "-ffreestanding",
+    run([cc, "-march=rv32im", "-mabi=ilp32", "-Os", "-ffreestanding",
          "-fno-builtin", "-msmall-data-limit=0", "-mno-relax",
          "-ffunction-sections", "-fdata-sections", "-nostdlib",
          "-Wl,--gc-sections,--no-relax,-Map=firmware.map",
          "-T", ROOT / "sw/k7_boot.ld", ROOT / "sw/k7_boot.S", ROOT / "sw/k7_main.c",
-         ROOT / "sw/cim.c", "-lgcc", "-o", "firmware.elf"], "firmware_build.log")
+         ROOT / "sw/cim.c", ROOT / "sw/cim_sw.c", "-lgcc", "-o", "firmware.elf"], "firmware_build.log")
     for section in ("text", "data"):
         run([copy, "-O", "binary", "-j", "." + section, "firmware.elf", section + ".bin"],
             "firmware_" + section + ".log")
@@ -140,7 +139,21 @@ def parse_results(output):
             rows.append(dict(mode=mode, M=m, cycles=cycles, outputs=count,
                              mismatches=bad, committed_words=writes))
     if "CIM_PASS" not in output.split() or [(row["mode"], row["M"]) for row in rows] != EXPECTED:
-        raise RuntimeError("Incomplete RV32I result sequence")
+        raise RuntimeError("Incomplete accelerator result sequence")
+    return rows
+
+
+def parse_cpu_results(output):
+    rows = []
+    for line in output.splitlines():
+        match = re.fullmatch(r"(?:# )?CPU_RESULT ((?:[0-9a-f]{8} ){3}[0-9a-f]{8})", line.strip())
+        if match:
+            m, cycles, count, bad = (int(field, 16) for field in match[1].split())
+            if not cycles or count != 64*m or bad:
+                raise ValueError(f"Invalid software result: {line}")
+            rows.append(dict(M=m, cycles=cycles, outputs=count, mismatches=bad))
+    if [row["M"] for row in rows] != [1, 125]:
+        raise RuntimeError("Incomplete RV32IM software baseline")
     return rows
 
 
@@ -163,14 +176,15 @@ def parse_resets(output):
     return rows
 
 
-def simulate(source, questa, trace_blocks):
+def simulate(source, questa, trace_blocks, turn, cache):
     if not (OUT / "work").exists():
         run([questa / "vlib.exe", "work"], "vlib.log")
     sources = cpu_files(source) + sorted((ROOT / "rtl").glob("*.sv")) + [
         ROOT / "fpga/cim_rv_system.sv", ROOT / "tb/tb_rv_system.sv"]
     run([questa / "vlog.exe", "-sv", f"+incdir+{OUT / 'cpu_include'}+{source / 'common'}",
          *sources], "soc_compile.log")
-    counter = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", "tb_rv_system",
+    generics = [f"-gTURNAROUND={turn}", f"-gINPUT_CACHE={cache}"]
+    counter = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", *generics, "tb_rv_system",
                    "+TEST_START_COUNTER", "-do",
                    "onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0"],
                   "start_counter.log")
@@ -179,14 +193,15 @@ def simulate(source, questa, trace_blocks):
     # Existing RF and predictor arrays have power-up initializers as well as
     # always_ff writes. Keep the source intact and allow that Questa diagnostic.
     trace_args = ["+TRACE_BLOCKS"] if trace_blocks else []
-    output = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", "tb_rv_system", *trace_args, "-do",
+    output = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", *generics, "tb_rv_system", *trace_args, "-do",
                   "onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0"],
                  "soc_simulation.log")
     (OUT / "soc_results.json").write_text(json.dumps(parse_results(output), indent=2), encoding="utf-8")
     (OUT / "soc_reset_results.json").write_text(json.dumps(parse_resets(output), indent=2), encoding="utf-8")
+    (OUT / "soc_cpu_results.json").write_text(json.dumps(parse_cpu_results(output), indent=2), encoding="utf-8")
 
 
-def program(vivado, target, port, archive):
+def program(vivado, target, port, archive, variant, usr_access):
     import serial
 
     bit = archive if archive else OUT / "cim_k7.bit"
@@ -199,15 +214,15 @@ def program(vivado, target, port, archive):
     if archive and not metadata.is_file():
         metadata = bit.parent / "board_results.json"
     record = json.loads(metadata.read_text(encoding="utf-8"))
-    if (record.get("bit_sha256"), record.get("usr_access")) != (sha(bit), USR_ACCESS):
-        raise ValueError("Bitstream SHA-256 or USR_ACCESS disagrees with the recorded v0.1 build")
+    if (record.get("bit_sha256"), record.get("usr_access")) != (sha(bit), usr_access):
+        raise ValueError("Bitstream SHA-256 or USR_ACCESS disagrees with the selected configuration")
     if not archive and record.get("prepared_files") != prepared_hashes():
         raise ValueError("Prepared images changed since implementation. Run impl again")
     transcript = bytearray()
     with serial.Serial(port, 115200, timeout=0.25) as uart:
         uart.reset_input_buffer()
         run([vivado, "-mode", "batch", "-nojournal", "-log", "program_vivado.log",
-             "-source", ROOT / "fpga/program_k7.tcl", "-tclargs", target, bit, USR_ACCESS], "program.log")
+             "-source", ROOT / "fpga/program_k7.tcl", "-tclargs", target, bit, usr_access], "program.log")
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
             transcript += uart.read(512)
@@ -219,7 +234,8 @@ def program(vivado, target, port, archive):
     rows = parse_results(output)
     resets = parse_resets(output)
     result = {"jtag_serial": target, "uart_port": port, "uart_baud": 115200,
-              "bit_sha256": sha(bit), "usr_access": USR_ACCESS, "resets": resets, "tasks": rows}
+              "variant": variant, "bit_sha256": sha(bit), "usr_access": usr_access,
+              "resets": resets, "tasks": rows, "software": parse_cpu_results(output)}
     (OUT / "board_results.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
 
 
@@ -230,7 +246,8 @@ def main():
     parser.add_argument("step", choices=("prepare", "sim", "impl", "program"))
     parser.add_argument("--cpu-source", type=Path, help="JYDD source directory with common/ and route_src/")
     parser.add_argument("--gcc-bin", type=Path, help="xPack RV32 GCC bin directory, or put GCC on PATH")
-    parser.add_argument("--out", type=Path, default=OUT, help="Build and capture directory")
+    parser.add_argument("--variant", choices=VARIANTS, default=DEFAULT_VARIANT)
+    parser.add_argument("--out", type=Path, help="Build and capture directory")
     parser.add_argument("--bitstream", type=Path, help="For program, a matching bit beside impl_vivado.log")
     parser.add_argument("--trace-blocks", action="store_true", help="For sim, write task-relative block_trace.csv")
     parser.add_argument("--jtag")
@@ -247,7 +264,8 @@ def main():
         if not gcc:
             parser.error("prepare requires --gcc-bin or riscv-none-elf-gcc.exe on PATH")
         args.gcc_bin = Path(gcc).parent
-    OUT = args.out.resolve()
+    turn, cache, usr_access = VARIANTS[args.variant]
+    OUT = (args.out or ROOT / f"build/k7_matrix_{args.variant}").resolve()
     source = args.cpu_source.resolve() if args.cpu_source else None
     vivado = Path(os.environ.get("VIVADO_BIN", "E:/Xilinx/Vivado/2023.2/bin")) / "vivado.bat"
     questa = Path(os.environ.get("QUESTA_BIN", "E:/questasim64_2024.1/win64"))
@@ -257,18 +275,20 @@ def main():
     if args.step == "prepare":
         prepare(source, args.gcc_bin.resolve())
     elif args.step == "sim":
-        simulate(source, questa, args.trace_blocks)
+        simulate(source, questa, args.trace_blocks, turn, cache)
     elif args.step == "impl":
         output = run([vivado, "-mode", "batch", "-nojournal", "-log", "impl_vivado.log",
-                      "-source", ROOT / "fpga/build_k7.tcl", "-tclargs", source],
+                      "-source", ROOT / "fpga/build_k7.tcl", "-tclargs", source, turn, cache, usr_access],
                      "implementation.log")
         if "K7_BITSTREAM_READY" not in output.splitlines():
             raise RuntimeError("Implementation did not pass the bitstream gate")
-        record = {"bit_sha256": sha(OUT / "cim_k7.bit"), "usr_access": USR_ACCESS,
+        record = {"bit_sha256": sha(OUT / "cim_k7.bit"), "usr_access": usr_access,
+                  "variant": args.variant, "turnaround": turn, "input_cache": cache,
                   "prepared_files": prepared_hashes()}
         (OUT / "bitstream_metadata.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
     else:
-        program(vivado, args.jtag, args.port, args.bitstream.resolve() if args.bitstream else None)
+        program(vivado, args.jtag, args.port, args.bitstream.resolve() if args.bitstream else None,
+                args.variant, usr_access)
 
 
 if __name__ == "__main__":
