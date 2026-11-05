@@ -1,0 +1,2 @@
+# Use LF for stable hashes of the public text evidence.
+docs/evidence/* text eol=lf

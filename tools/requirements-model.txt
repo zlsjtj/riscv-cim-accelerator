@@ -1,0 +1,4 @@
+# Used only for fixed-model FlatBuffers metadata/constants, not inference.
+numpy==2.1.2
+flatbuffers==25.12.19
+tflite==2.18.0

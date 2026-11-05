@@ -1,0 +1,3 @@
+# Isolate from the existing NumPy 2 model-parser environment.
+tensorflow==2.16.1
+numpy==1.26.4
