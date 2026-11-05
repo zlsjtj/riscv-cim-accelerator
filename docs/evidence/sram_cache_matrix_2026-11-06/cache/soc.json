@@ -1,0 +1,74 @@
+{
+  "tasks": [
+    {
+      "mode": 0,
+      "M": 125,
+      "cycles": 51921,
+      "outputs": 8000,
+      "mismatches": 0,
+      "committed_words": 2000
+    },
+    {
+      "mode": 0,
+      "M": 1,
+      "cycles": 4553,
+      "outputs": 64,
+      "mismatches": 0,
+      "committed_words": 16
+    },
+    {
+      "mode": 1,
+      "M": 125,
+      "cycles": 30097,
+      "outputs": 8000,
+      "mismatches": 0,
+      "committed_words": 2000
+    },
+    {
+      "mode": 1,
+      "M": 1,
+      "cycles": 4553,
+      "outputs": 64,
+      "mismatches": 0,
+      "committed_words": 16
+    }
+  ],
+  "resets": [
+    {
+      "mode": 0,
+      "status_before": 1,
+      "read_response_at_reset": 1,
+      "committed_before": 2,
+      "status_after": 0,
+      "cycles_after": 0,
+      "committed_after": 0,
+      "retained_words": 2,
+      "invalid_words": 0
+    },
+    {
+      "mode": 1,
+      "status_before": 1,
+      "read_response_at_reset": 1,
+      "committed_before": 2,
+      "status_after": 0,
+      "cycles_after": 0,
+      "committed_after": 0,
+      "retained_words": 2,
+      "invalid_words": 0
+    }
+  ],
+  "software": [
+    {
+      "M": 1,
+      "cycles": 23010,
+      "outputs": 64,
+      "mismatches": 0
+    },
+    {
+      "M": 125,
+      "cycles": 2749530,
+      "outputs": 8000,
+      "mismatches": 0
+    }
+  ]
+}

@@ -10,9 +10,14 @@ from check_reference import check
 from variants import DEFAULT_VARIANT, VARIANTS
 
 
-def command(args, log):
-    print('RUN', ' '.join(map(str,args)), flush=True)
-    result = subprocess.run(list(map(str,args)), cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace')
+def command(args, log, batch=False):
+    args = list(map(str, args))
+    print('RUN', ' '.join(args), flush=True)
+    # Vivado's Windows batch loader treats an unquoted '=' as a separator.
+    invocation = args
+    if batch and os.name == 'nt':
+        invocation = ' '.join(f'"{arg}"' if '=' in arg else subprocess.list2cmdline([arg]) for arg in args)
+    result = subprocess.run(invocation, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors='replace')
     (ROOT/'build'/log).write_text(result.stdout, encoding='utf-8')
     print(result.stdout[-8000:], flush=True)
     if result.returncode:
@@ -39,9 +44,9 @@ def simulate(sim, top, plusargs, compile_log, simulation_log, generics=()):
         command([vivado/'xvlog.bat', '--sv', *sources], compile_log)
         overrides = [item for arg in generics for item in ('--generic_top', arg)]
         command([vivado/'xelab.bat', top, '--snapshot', top, '--timescale', '1ns/1ps', *overrides],
-                f'{top}_elaborate.log')
+                f'{top}_elaborate.log', batch=True)
         testargs = [item for arg in plusargs for item in ('--testplusarg', arg[1:])]
-        return command([vivado/'xsim.bat', top, '--runall', *testargs], simulation_log)
+        return command([vivado/'xsim.bat', top, '--runall', *testargs], simulation_log, batch=True)
     binary = f'build/{top}.vvp'
     command(['iverilog', '-g2012', '-s', top, '-o', binary,
              *(f'-P{top}.{arg}' for arg in generics), *sources], compile_log)
@@ -72,6 +77,8 @@ def main():
     args=ap.parse_args()
     if args.memory != 'fixed' and (args.read_latency or args.sweep_latency):
         ap.error('latency options require --memory fixed')
+    if args.p1_only and args.dataset == 'matrix':
+        ap.error('--p1-only requires a fixture set beginning with M=1 and M=125')
     (ROOT/'build').mkdir(exist_ok=True)
     dataset = 'real' if args.real_activations else args.dataset
     print(f'Dataset: {dataset}', flush=True)

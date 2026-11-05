@@ -59,9 +59,10 @@ golden 填充输出区，再在检测到 BUSY 和已有写提交后请求复位�
 
 从项目根目录执行。公开源码提供板级适配和构建入口，整板需要自行提供
 获授权的外部 JYDD CPU/UART。先按 [README](../README.md) 导出 tensor23，准备
-xPack GCC 15.2.0、Questa 2024.1 和 Vivado 2023.2。构建默认写入
-`build/k7_v0.1/`。使用 `--out` 可为各次构建指定单独目录，三个构建命令
-须使用同一目录。
+xPack GCC 15.2.0、Questa 2024.1 和 Vivado 2023.2。当前分支默认构建
+`combined`，输出到 `build/k7_matrix_combined/`。其他构建使用
+`--variant baseline|turnaround|cache`，也可用 `--out` 指定目录。准备、仿真、
+实现和加载须使用同一配置和目录。四版实验见 [架构对照](SRAM_CACHE_MATRIX.md)。
 
 ```powershell
 $cpuSrc = '<经授权的 JYDD 工程 source 目录>'
@@ -89,12 +90,14 @@ $serialPort = '<实际 COM 号>'
 python tools/k7.py program --jtag $jtagSerial --port $serialPort
 ```
 
-脚本核对 FPGA 型号、位流摘要、JTAG DONE 和 USR_ACCESS `43494d33`。
-UART 115200 8N1 输出两条 `CIM_RESET`、四条 `CIM_RESULT` 和 `CIM_PASS`。
-演示可依次指出两个模式的 M125 计数 78,172 和 56,348，展示每次重启后
-仅保留复位前已提交的 2 字，并用 M1 的 64 字节核对说明运行时配置生效。
-原始的量化流水版板测位流、日志和结果位于 `build/k7_qpipe/`。有权在
-本地使用该归档时，可在新目录采集串口，保留原记录。
+脚本核对 FPGA 型号、位流摘要、JTAG DONE 和配置对应的 USR_ACCESS。
+默认配置的标识为 `43494d43`。UART 115200 8N1 输出两条 `CIM_RESET`、
+四条 `CIM_RESULT`、两条 RV32IM `CPU_RESULT` 和 `CIM_PASS`。
+固件的启动串保留原先 scratchpad 实验的文字，配置以 JTAG 读回的
+USR_ACCESS 为准。可用 M1 的 64 字节核对展示运行时配置生效。
+
+原始量化流水版板测位流、日志和结果位于 `build/k7_qpipe/`。有权在本地
+使用该归档时，从 `v0.1.0` 检出对应脚本，用新输出目录保留原始记录。
 
 ```powershell
 python tools/k7.py program --out build/demo-v0.1 --bitstream build/k7_qpipe/cim_k7.bit --jtag $jtagSerial --port $serialPort

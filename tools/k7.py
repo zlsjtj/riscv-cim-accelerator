@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from reference import ROOT, generate
-from variants import DEFAULT_VARIANT, VARIANTS
+from variants import DEFAULT_K7_VARIANT, VARIANTS
 
 CPU = ("RF", "Control", "IMMGEN", "CCTL", "ALU", "ACTL", "CSR")
 INCLUDES = ("defines", "myCPU_units", "myCPU_m_ext", "myCPU_bitmanip")
@@ -246,7 +246,8 @@ def main():
     parser.add_argument("step", choices=("prepare", "sim", "impl", "program"))
     parser.add_argument("--cpu-source", type=Path, help="JYDD source directory with common/ and route_src/")
     parser.add_argument("--gcc-bin", type=Path, help="xPack RV32 GCC bin directory, or put GCC on PATH")
-    parser.add_argument("--variant", choices=VARIANTS, default=DEFAULT_VARIANT)
+    parser.add_argument("--variant", choices=VARIANTS, default=DEFAULT_K7_VARIANT,
+                        help=f"hardware configuration (default: {DEFAULT_K7_VARIANT})")
     parser.add_argument("--out", type=Path, help="Build and capture directory")
     parser.add_argument("--bitstream", type=Path, help="For program, a matching bit beside impl_vivado.log")
     parser.add_argument("--trace-blocks", action="store_true", help="For sim, write task-relative block_trace.csv")

@@ -1,0 +1,78 @@
+{
+  "uart_baud": 115200,
+  "variant": "combined",
+  "bit_sha256": "730d6565757e28e059a2caf79c2b76495caf8718062d2c6da92857f226e746e0",
+  "usr_access": "43494d43",
+  "resets": [
+    {
+      "mode": 0,
+      "status_before": 1,
+      "read_response_at_reset": 1,
+      "committed_before": 2,
+      "status_after": 0,
+      "cycles_after": 0,
+      "committed_after": 0,
+      "retained_words": 2,
+      "invalid_words": 0
+    },
+    {
+      "mode": 1,
+      "status_before": 1,
+      "read_response_at_reset": 1,
+      "committed_before": 2,
+      "status_after": 0,
+      "cycles_after": 0,
+      "committed_after": 0,
+      "retained_words": 2,
+      "invalid_words": 0
+    }
+  ],
+  "tasks": [
+    {
+      "mode": 0,
+      "M": 125,
+      "cycles": 48171,
+      "outputs": 8000,
+      "mismatches": 0,
+      "committed_words": 2000
+    },
+    {
+      "mode": 0,
+      "M": 1,
+      "cycles": 4523,
+      "outputs": 64,
+      "mismatches": 0,
+      "committed_words": 16
+    },
+    {
+      "mode": 1,
+      "M": 125,
+      "cycles": 26719,
+      "outputs": 8000,
+      "mismatches": 0,
+      "committed_words": 2000
+    },
+    {
+      "mode": 1,
+      "M": 1,
+      "cycles": 4523,
+      "outputs": 64,
+      "mismatches": 0,
+      "committed_words": 16
+    }
+  ],
+  "software": [
+    {
+      "M": 1,
+      "cycles": 23013,
+      "outputs": 64,
+      "mismatches": 0
+    },
+    {
+      "M": 125,
+      "cycles": 2749533,
+      "outputs": 8000,
+      "mismatches": 0
+    }
+  ]
+}

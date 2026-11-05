@@ -1,0 +1,5 @@
+mode,M,cycles,shared_reads,shared_writes,cache_reads,cache_writes
+0,125,48171,17216,2000,0,0
+0,1,4523,1344,16,0,0
+1,125,29323,17216,2000,0,0
+1,1,4523,1344,16,0,0

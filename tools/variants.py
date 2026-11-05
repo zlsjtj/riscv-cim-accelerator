@@ -7,3 +7,4 @@ VARIANTS = {
     "combined": (1, 1, "43494d43"),
 }
 DEFAULT_VARIANT = "turnaround"
+DEFAULT_K7_VARIANT = "combined"

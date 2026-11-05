@@ -1,4 +1,4 @@
-# RISC-V CiM INT8 加速器 · 50 MHz v0.1.0
+# RISC-V CiM INT8 加速器 · K7 50 MHz
 
 可综合 SystemVerilog 实现固定 K=N=64、运行时 M=1..125 的单层 INT8
 pointwise 卷积。RISC-V 固件装入输入、权重、bias、逐通道 multiplier/shift 后，
@@ -8,8 +8,10 @@ pointwise 卷积。RISC-V 固件装入输入、权重、bias、逐通道 multipl
 完整 K7 流程需要使用者提供授权取得的 JYDD CPU/UART 源码。
 [v0.1.0 发布说明](docs/RELEASE_v0.1.md)
 
-本分支的 [共享 SRAM 请求周转](docs/SRAM_TURNAROUND.md) 记录公开回归升级、
-固定/可变响应模型、请求波形和同频对照。下表保留 v0.1.0 的原始板测。
+本分支完成 [共享 SRAM 四版对照](docs/SRAM_CACHE_MATRIX.md)。K7 构建默认
+启用请求周转与 8 KiB 输入缓存。独立 RTL 默认使用仅请求周转，回归可
+显式选择四种配置。原 [请求周转候选](docs/SRAM_TURNAROUND.md) 和 v0.1.0
+结果分别保留。
 
 ```
 运行时共享SRAM ──32bit请求/响应── 权重/参数加载与双输入槽
@@ -28,6 +30,23 @@ MODE=0 使用阻塞调度，MODE=1 允许两个块有限重叠。两者使用相
 权重；不代表真实模拟宏、工艺面积或能效。
 
 ## 50 MHz 实测
+
+2026-11-06 的四版使用同一 RV32IM 固件、输入、CPU 和 50 MHz 约束。
+以下为实板周期，四版均通过两次热复位及逐字节比较。
+
+|构建|M1 两种模式各自|M125 阻塞|M125 重叠|RAMB36|
+|---|---:|---:|---:|---:|
+|baseline|4,763|78,171|56,347|16|
+|turnaround|4,523|48,171|29,323|16|
+|cache|4,553|51,921|30,097|18|
+|combined（K7 默认）|4,523|48,171|26,719|18|
+
+组合相对仅周转的 M125 重叠延迟少 8.88%，由 586.46 µs 降至 534.38 µs。
+两个额外 RAMB36 使 M125 共享 SRAM 读从 17,216 降到 3,216 次，
+访问计数来自对应 SoC 仿真。软件基线实板为 M1 23,013 拍、M125
+2,749,533 拍。时序、计时窗口和证据见 [四版对照](docs/SRAM_CACHE_MATRIX.md)。
+
+### v0.1.0 原始板测
 
 |M|阻塞周期 / 用时|重叠周期 / 用时|每模式逐字节比较|
 |---|---:|---:|---:|
@@ -51,6 +70,8 @@ Linux / WSL 的公开回归使用 Python 3、G++ 和 Icarus Verilog（Ubuntu 24.
 
 ```bash
 python3 tools/run.py --dataset synthetic --simulator iverilog
+# CI 同样覆盖最快连续接受路径
+python3 tools/run.py --dataset matrix --simulator iverilog --memory fixed --variant combined
 ```
 
 Windows 可使用 Python 3.12.0、G++ 9.3.0 和 Questa 2024.1。
@@ -79,8 +100,8 @@ python tools/run.py --real-activations --simulator questa
 合成激活用例。`--dataset real` 要求已有经校验的 tensor23，`--real-activations`
 先导出再执行该集。缓存存在与否不改变用例集。`--skip-official-check` 仅供
 调试，终端和日志均标记 SKIPPED。输入来源见 [激活来源记录](docs/ACTIVATIONS.md)。
-日志和逐任务周期保存在 `build/`。最终真实激活回归为 16 个任务、64,512 字节
-匹配，含合成和真实输入。周期由各测试的存储模型决定，板上周期以上表为准。
+日志和逐任务周期保存在 `build/`。本轮四种配置各跑 22 个真实数据集任务，
+每版 81,024 字节匹配，含合成和真实输入。周期由各测试的存储模型决定。
 
 额外可执行检查：
 

@@ -23,7 +23,7 @@ module tb_accel #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
  reg [31:0] pending_addr=0;
  reg held=0; reg [68:0] held_request;
  integer i,j,case_id,mode_id,ncases=4,timeout_cycles;
- integer cycles_result,read_latency=1,latency_limit=1,accept_edge;
+ integer cycles_result,read_latency=1,latency_limit=1,first_latency,accept_edge;
  integer cache_reads,cache_writes;
  reg [2047:0] filled_words;
  reg [31:0] status;
@@ -76,7 +76,7 @@ module tb_accel #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
     if(mem_valid && !mem_ready) port_stall++;
     else if(dut.rd_pending && !mem_rvalid) response_wait++;
     else if(!mem_valid) idle_other++;
-    if(trace && case_id==0 && mode_id==0 && read_latency==1)
+    if(trace && case_id==0 && mode_id==0 && read_latency==first_latency)
      $fwrite(trace,"%0d,%0d,%0d,%08h,%b,%b,%b,%b,%b\n",dut.cycles+1,dut.state,dut.req_kind,
              mem_addr,mem_valid,mem_ready,mem_write,mem_rvalid,dut.rd_pending);
    end
@@ -183,6 +183,7 @@ module tb_accel #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
   if($test$plusargs("P1_ONLY")) begin p1_only=1;ncases=2;end
   fixed_memory=$test$plusargs("FIXED_MEMORY");
   if($value$plusargs("READ_LATENCY=%d",read_latency)) begin end
+  first_latency=read_latency;
   latency_limit=$test$plusargs("SWEEP_LATENCY") ? 8 : read_latency;
   vcd_trace=$test$plusargs("VCD_TRACE");
   summary=$fopen(fixed_memory ? "build/fixed_results.csv" : "build/results.csv","w");
@@ -259,7 +260,7 @@ module tb_accel #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
     service_count=0;
     wr('h00,1);
     active=1;
-    if(vcd_trace && case_id==0 && mode_id==0) begin
+    if(vcd_trace && case_id==0 && mode_id==0 && read_latency==first_latency) begin
      $dumpfile(fixed_memory ? "build/fixed_memory.vcd" : "build/variable_memory.vcd");
      $dumpvars(0,clk,mem_valid,mem_ready,mem_write,mem_addr,mem_rvalid,dut.rd_pending,dut.req_kind);
     end
@@ -299,7 +300,7 @@ module tb_accel #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
     $fwrite(summary,"%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d\n",case_id,task_m,mode_id,
             cycles_result,read_count,write_count,clock_count,fixed_memory ? read_latency : 0,cache_reads,cache_writes);
     $fwrite(profile,"%0d,%0d,%0d,%0d,%0d,%0d\n",case_id,task_m,mode_id,port_stall,response_wait,idle_other);
-    if(vcd_trace && case_id==0 && mode_id==0) $dumpoff;
+    if(vcd_trace && case_id==0 && mode_id==0 && read_latency==first_latency) $dumpoff;
     if(task_m>1) for(i=0;i<8;i=i+1)
      $fwrite(steady_summary,"%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d\n",case_id,task_m,mode_id,i,first_block[i],last_block[i],last_block[i]-first_block[i],task_m-1);
     repeat(10) @(negedge clk);rd('h04,status);

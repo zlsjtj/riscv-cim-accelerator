@@ -1,0 +1,70 @@
+{
+  "variant": "cache",
+  "wns_ns": 6.329,
+  "whs_ns": 0.07,
+  "unconstrained_internal": 0,
+  "spad_ramb36": 2,
+  "next_addr_ffs": 0,
+  "hierarchy": {
+    "cim_k7_top": {
+      "lut": 16811,
+      "ff": 11014,
+      "ramb36": 18,
+      "ramb18": 0,
+      "dsp": 8
+    },
+    "accel": {
+      "lut": 10993,
+      "ff": 7999,
+      "ramb36": 2,
+      "ramb18": 0,
+      "dsp": 4
+    },
+    "(accel)": {
+      "lut": 2471,
+      "ff": 3426,
+      "ramb36": 2,
+      "ramb18": 0,
+      "dsp": 0
+    },
+    "macro_unit": {
+      "lut": 7704,
+      "ff": 4532,
+      "ramb36": 0,
+      "ramb18": 0,
+      "dsp": 0
+    },
+    "quant_unit": {
+      "lut": 821,
+      "ff": 41,
+      "ramb36": 0,
+      "ramb18": 0,
+      "dsp": 4
+    },
+    "cpu": {
+      "lut": 5781,
+      "ff": 2782,
+      "ramb36": 0,
+      "ramb18": 0,
+      "dsp": 4
+    }
+  },
+  "critical_setup": [
+    "Source:                 system/accel/quant_unit/product_reg__0/CLK",
+    "Destination:            system/accel/output_bytes_reg[1][7]/D",
+    "Path Group:             raw_clk",
+    "Path Type:              Setup (Max at Slow Process Corner)",
+    "Data Path Delay:        13.580ns  (logic 6.470ns (47.645%)  route 7.110ns (52.355%))"
+  ],
+  "drc_rules": [
+    "| DPIP-1 | Warning  | Input pipelining       | 8          |",
+    "| DPOP-1 | Warning  | PREG Output pipelining | 4          |",
+    "| DPOP-2 | Warning  | MREG Output pipelining | 8          |"
+  ],
+  "route_summary": [
+    "# of routable nets..................... :       29122 :",
+    "# of nets with routing errors.......... :           0 :"
+  ],
+  "usr_access": "43494d42",
+  "bit_sha256": "033258fb634b4ef2318e21e4bbca28251e0a623227ab90732923f522a0af25e3"
+}
