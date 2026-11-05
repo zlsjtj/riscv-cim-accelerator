@@ -12,11 +12,11 @@ from pathlib import Path
 
 from reference import ROOT, generate
 
-OUT = ROOT / "build/k7_v0.1"
+OUT = ROOT / "build/k7_spad"
 CPU = ("RF", "Control", "IMMGEN", "CCTL", "ALU", "ACTL", "CSR")
 INCLUDES = ("defines", "myCPU_units", "myCPU_m_ext", "myCPU_bitmanip")
 EXPECTED = [(0, 125), (0, 1), (1, 125), (1, 1)]
-USR_ACCESS = "43494d33"
+USR_ACCESS = "43494d34"
 
 
 def run(command, log):
@@ -98,12 +98,12 @@ def prepare(source, tools):
     cc = tools / "riscv-none-elf-gcc.exe"
     copy = tools / "riscv-none-elf-objcopy.exe"
     run([cc, "--version"], "gcc_version.log")
-    run([cc, "-march=rv32i", "-mabi=ilp32", "-Os", "-ffreestanding",
+    run([cc, "-march=rv32im", "-mabi=ilp32", "-Os", "-ffreestanding",
          "-fno-builtin", "-msmall-data-limit=0", "-mno-relax",
          "-ffunction-sections", "-fdata-sections", "-nostdlib",
          "-Wl,--gc-sections,--no-relax,-Map=firmware.map",
          "-T", ROOT / "sw/k7_boot.ld", ROOT / "sw/k7_boot.S", ROOT / "sw/k7_main.c",
-         ROOT / "sw/cim.c", "-lgcc", "-o", "firmware.elf"], "firmware_build.log")
+         ROOT / "sw/cim.c", ROOT / "sw/cim_sw.c", "-lgcc", "-o", "firmware.elf"], "firmware_build.log")
     for section in ("text", "data"):
         run([copy, "-O", "binary", "-j", "." + section, "firmware.elf", section + ".bin"],
             "firmware_" + section + ".log")
@@ -163,12 +163,26 @@ def parse_resets(output):
     return rows
 
 
+def parse_cpu_results(output):
+    rows = []
+    for line in output.splitlines():
+        match = re.fullmatch(r"(?:# )?CPU_RESULT ((?:[0-9a-f]{8} ){3}[0-9a-f]{8})", line.strip())
+        if match:
+            m, cycles, count, bad = (int(field, 16) for field in match[1].split())
+            if not cycles or count != 64*m or bad:
+                raise ValueError(f"Invalid software result: {line}")
+            rows.append(dict(M=m, cycles=cycles, outputs=count, mismatches=bad))
+    if [row["M"] for row in rows] != [1, 125]:
+        raise RuntimeError("Incomplete RV32IM software baseline")
+    return rows
+
+
 def simulate(source, questa, trace_blocks):
     if not (OUT / "work").exists():
         run([questa / "vlib.exe", "work"], "vlib.log")
     sources = cpu_files(source) + sorted((ROOT / "rtl").glob("*.sv")) + [
         ROOT / "fpga/cim_rv_system.sv", ROOT / "tb/tb_rv_system.sv"]
-    run([questa / "vlog.exe", "-sv", f"+incdir+{OUT / 'cpu_include'}+{source / 'common'}",
+    run([questa / "vlog.exe", "-sv", "+define+CIM_SW_TIMER", f"+incdir+{OUT / 'cpu_include'}+{source / 'common'}",
          *sources], "soc_compile.log")
     # Existing RF and predictor arrays have power-up initializers as well as
     # always_ff writes. Keep the source intact and allow that Questa diagnostic.
@@ -178,6 +192,7 @@ def simulate(source, questa, trace_blocks):
                  "soc_simulation.log")
     (OUT / "soc_results.json").write_text(json.dumps(parse_results(output), indent=2), encoding="utf-8")
     (OUT / "soc_reset_results.json").write_text(json.dumps(parse_resets(output), indent=2), encoding="utf-8")
+    (OUT / "soc_cpu_results.json").write_text(json.dumps(parse_cpu_results(output), indent=2), encoding="utf-8")
 
 
 def program(vivado, target, port, archive):
@@ -194,7 +209,7 @@ def program(vivado, target, port, archive):
         metadata = bit.parent / "board_results.json"
     record = json.loads(metadata.read_text(encoding="utf-8"))
     if (record.get("bit_sha256"), record.get("usr_access")) != (sha(bit), USR_ACCESS):
-        raise ValueError("Bitstream SHA-256 or USR_ACCESS disagrees with the recorded v0.1 build")
+        raise ValueError("Bitstream SHA-256 or USR_ACCESS disagrees with the recorded scratchpad build")
     if not archive and record.get("prepared_files") != prepared_hashes():
         raise ValueError("Prepared images changed since implementation. Run impl again")
     transcript = bytearray()
@@ -213,7 +228,8 @@ def program(vivado, target, port, archive):
     rows = parse_results(output)
     resets = parse_resets(output)
     result = {"jtag_serial": target, "uart_port": port, "uart_baud": 115200,
-              "bit_sha256": sha(bit), "usr_access": USR_ACCESS, "resets": resets, "tasks": rows}
+              "bit_sha256": sha(bit), "usr_access": USR_ACCESS, "resets": resets, "tasks": rows,
+              "software": parse_cpu_results(output)}
     (OUT / "board_results.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
 
 
@@ -224,8 +240,8 @@ def main():
     parser.add_argument("step", choices=("prepare", "sim", "impl", "program"))
     parser.add_argument("--cpu-source", type=Path, help="JYDD source directory with common/ and route_src/")
     parser.add_argument("--gcc-bin", type=Path, help="xPack RV32 GCC bin directory, or put GCC on PATH")
-    parser.add_argument("--out", type=Path, default=OUT, help="Build and capture directory (default build/k7_v0.1)")
-    parser.add_argument("--bitstream", type=Path, help="For program, an existing v0.1 bit beside impl_vivado.log")
+    parser.add_argument("--out", type=Path, default=OUT, help="Build and capture directory (default build/k7_spad)")
+    parser.add_argument("--bitstream", type=Path, help="For program, a scratchpad bit beside impl_vivado.log")
     parser.add_argument("--trace-blocks", action="store_true", help="For sim, write task-relative block_trace.csv")
     parser.add_argument("--jtag")
     parser.add_argument("--port")

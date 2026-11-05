@@ -41,6 +41,19 @@ module cim_accel (
  logic [7:0] position[0:1];
  logic [4:0] fill_word[0:1];
  logic [255:0] input_low[0:1],input_high[0:1];
+ // Tile 0 fills raw input words by position. Later tiles replay them locally.
+ (* ram_style = "block" *) logic [31:0] input_spad[0:2047];
+ logic spad_active, spad_ctx, spad_rvalid, spad_result_ctx;
+ logic [3:0] spad_index, spad_result_index;
+ logic [31:0] spad_rdata;
+ wire external_input = mem_rvalid && rd_pending && rd_kind == RD_INPUT;
+ wire spad_write = rst_n && external_input && tile == 0;
+ wire spad_read = rst_n && spad_active;
+ wire [10:0] spad_addr = spad_write ? {position[rd_ctx][6:0], rd_index[3:0]} :
+                                      {position[spad_ctx][6:0], spad_index};
+ wire input_ctx = spad_rvalid ? spad_result_ctx : rd_ctx;
+ wire [3:0] input_index = spad_rvalid ? spad_result_index : rd_index[3:0];
+ wire [31:0] input_data = spad_rvalid ? spad_rdata : mem_rdata;
  logic signed [31:0] partial[0:1][0:7];
  logic [63:0] output_bytes[0:1];
  logic [3:0] quant_index[0:1];
@@ -66,6 +79,13 @@ module cim_accel (
   .a_plane(a_plane),.busy(mac_busy),.result_valid(mac_valid),.result_data(mac_data));
  requant quant_unit(.clk(clk),.enable(q_valid),.acc(q_acc),
   .multiplier(q_mul),.shift(q_shift),.value(q_value));
+
+ // Single synchronous port. Write and read phases are separated by tile drain.
+ // No array reset: each task rewrites every usable word before its first replay.
+ always_ff @(posedge clk) begin
+  if(spad_write) input_spad[spad_addr]<=mem_rdata;
+  else if(spad_read) spad_rdata<=input_spad[spad_addr];
+ end
 
  always_comb begin
   cfg_ready=1'b1;
@@ -118,6 +138,8 @@ module cim_accel (
    req_index<=0;rd_index<=0;req_last<=0;load_word<=0;weight_low<=0;
    w_valid<=0;w_row<=0;w_data<=0;
    live<=0;input_ready<=0;issued_low<=0;issued_high<=0;recon_done<=0;output_ready<=0;
+   spad_active<=0;spad_ctx<=0;spad_index<=0;
+   spad_rvalid<=0;spad_result_ctx<=0;spad_result_index<=0;
    raw_valid<=0;raw_reserved<=0;flight_slot<=0;plane_ctx<=0;plane_high<=0;plane_index<=0;
    write_index<=0;
    q_result_valid<=0;q_result_ctx<=0;q_result_channel<=0;
@@ -129,6 +151,7 @@ module cim_accel (
    for(j=0;j<8;j=j+1) begin bias[j]<=0;multiplier[j]<=0;shift[j]<=0;end
   end else begin
    q_result_valid<=q_valid;
+   spad_rvalid<=spad_read;
    if(busy) begin
     cycles<=cycles+1;
     if(mem_valid && !mem_ready) mem_wait<=mem_wait+1;
@@ -202,16 +225,31 @@ module cim_accel (
       if(!rd_index[0]) weight_low<=mem_rdata;
       else begin w_valid<=1;w_row<=rd_index[6:1];w_data<={mem_rdata,weight_low};end
      end
-     RD_INPUT: begin
-      for(k=0;k<4;k=k+1) begin
-       input_low[rd_ctx][(rd_index*4+k)*4 +:4]<=mem_rdata[k*8 +:4];
-       input_high[rd_ctx][(rd_index*4+k)*4 +:4]<={~mem_rdata[k*8+7],mem_rdata[k*8+4 +:3]};
-      end
-      fill_word[rd_ctx]<=fill_word[rd_ctx]+1;
-      if(rd_index==15) input_ready[rd_ctx]<=1;
-     end
      default: ;
     endcase
+   end
+   if(external_input || spad_rvalid) begin
+    for(k=0;k<4;k=k+1) begin
+     input_low[input_ctx][(input_index*4+k)*4 +:4]<=input_data[k*8 +:4];
+     input_high[input_ctx][(input_index*4+k)*4 +:4]<={~input_data[k*8+7],input_data[k*8+4 +:3]};
+    end
+    fill_word[input_ctx]<=fill_word[input_ctx]+1;
+    if(input_index==15) input_ready[input_ctx]<=1;
+   end
+
+   if(spad_read) begin
+    spad_result_ctx<=spad_ctx;
+    spad_result_index<=spad_index;
+    spad_index<=spad_index+1'b1;
+    if(spad_index==15) spad_active<=0;
+   end else if(state==RUN && tile!=0) begin
+    // The last response may still be in flight on the cycle after issue 15.
+    // Exclude that context when selecting the next burst.
+    if(live[0] && !input_ready[0] && !(spad_rvalid && !spad_result_ctx)) begin
+     spad_active<=1;spad_ctx<=0;spad_index<=0;
+    end else if(live[1] && !input_ready[1] && !(spad_rvalid && spad_result_ctx)) begin
+     spad_active<=1;spad_ctx<=1;spad_index<=0;
+    end
    end
 
    // One shared 32-bit port; at most one outstanding read and a reserved destination.
@@ -235,7 +273,7 @@ module cim_accel (
        mem_wdata<=output_bytes[1][write_index[1]*32 +:32];
       end
       mem_valid<=1;mem_write<=1;mem_wstrb<=4'hf;
-     end else if((live[0] && !input_ready[0]) || (live[1] && !input_ready[1])) begin
+     end else if(tile==0 && ((live[0] && !input_ready[0]) || (live[1] && !input_ready[1]))) begin
       mem_valid<=1;mem_write<=0;mem_wstrb<=0;req_kind<=RD_INPUT;
       if(live[0] && !input_ready[0]) begin
        req_ctx<=0;req_index<={3'b0,fill_word[0]};
@@ -292,7 +330,8 @@ module cim_accel (
      if(q_result_channel==7) output_ready[q_result_ctx]<=1;
     end
     if(next_p==task_m && live==0 && raw_valid==0 && raw_reserved==0 &&
-       !mac_busy && !mac_valid && !mem_valid && !rd_pending && !q_result_valid) begin
+       !mac_busy && !mac_valid && !mem_valid && !rd_pending && !q_result_valid &&
+       !spad_active && !spad_rvalid) begin
      if(tile==7) begin busy<=0;done<=1;state<=IDLE;end
      else begin tile<=tile+1;load_word<=0;state<=PARAM;next_p<=0;end
     end

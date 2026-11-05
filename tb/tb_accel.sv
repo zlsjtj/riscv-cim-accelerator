@@ -13,6 +13,8 @@ module tb_accel;
  reg written[0:7999];
  cim_accel dut(.*);
  integer clock_count=0,read_count=0,write_count=0,response_count=0,macro_count=0;
+ integer spad_writes=0,spad_reads=0,spad_returns=0;
+ reg [2047:0] spad_written;
  integer first_block[0:7],last_block[0:7],service_count=0;
  integer pending_delay=0,final_hold=0,early_hold=0,task_m=1;
  reg read_pending=0,active=0,hold_seen=0;
@@ -47,6 +49,27 @@ module tb_accel;
   if(!rst_n) begin
    read_pending=0;held=0;mem_rvalid<=0;
   end else begin
+   if(dut.spad_read && dut.spad_write) $fatal(1,"scratchpad port collision");
+   if(dut.spad_rvalid && dut.external_input) $fatal(1,"input returns collided");
+   if(active) begin
+    if(dut.spad_write) begin
+     if(dut.tile!=0 || dut.spad_addr>=16*task_m || spad_written[dut.spad_addr])
+      $fatal(1,"invalid or duplicate scratchpad fill");
+     spad_written[dut.spad_addr]=1;
+     spad_writes++;
+    end
+    if(dut.spad_read) begin
+     if(dut.tile==0 || dut.spad_addr>=16*task_m || !spad_written[dut.spad_addr])
+      $fatal(1,"scratchpad replay used unwritten input");
+     spad_reads++;
+    end
+    if(dut.spad_rvalid) begin
+     if(!dut.live[dut.spad_result_ctx] || dut.input_ready[dut.spad_result_ctx] ||
+        dut.fill_word[dut.spad_result_ctx]!={1'b0,dut.spad_result_index})
+      $fatal(1,"scratchpad return lost its live destination or word order");
+     spad_returns++;
+    end
+   end
    if(held && (!mem_valid || {mem_write,mem_addr,mem_wdata,mem_wstrb}!==held_request))
     $fatal(1,"unstable stalled memory request cycle=%0d",clock_count);
    held=mem_valid && !mem_ready;
@@ -138,6 +161,18 @@ module tb_accel;
   rd('h04,status);
   if(status!==0 || mem_valid || dut.q_result_valid)
    $fatal(1,"quantization result survived reset");
+  // First tile writes its output, then reset with a local read in flight.
+  memory['h1000]=~memory['h1000];
+  configure(1,1);
+  for(i=0;i<64;i=i+1) written[i]=0;
+  spad_written='0;wr('h00,1);active=1;
+  for(int elapsed=0; elapsed<20000 && !dut.spad_rvalid; elapsed++) @(negedge clk);
+  if(!dut.spad_rvalid) $fatal(1,"scratchpad reset point not reached");
+  rst_n=0;active=0;
+  repeat(3) @(negedge clk);rst_n=1;
+  rd('h04,status);
+  if(status!==0 || mem_valid || dut.spad_active || dut.spad_rvalid)
+   $fatal(1,"scratchpad burst survived reset");
   for(case_id=0;case_id<ncases;case_id=case_id+1) begin
    for(mode_id=0;mode_id<(p1_only?1:2);mode_id=mode_id+1) begin
     task_m=case_m[case_id];
@@ -147,6 +182,7 @@ module tb_accel;
     $readmemh(vector_file,golden,0,64*task_m-1);
     for(i=0;i<8000;i=i+1) written[i]=0;
     read_count=0;write_count=0;response_count=0;macro_count=0;final_hold=0;early_hold=0;hold_seen=0;two_live_seen=0;
+    spad_written='0;spad_writes=0;spad_reads=0;spad_returns=0;
     for(i=0;i<8;i=i+1) begin first_block[i]=0;last_block[i]=0;end
     configure(task_m,mode_id);
     service_count=0;
@@ -170,8 +206,10 @@ module tb_accel;
     if(!hold_seen) $fatal(1,"final-write backpressure not reached");
     if(task_m>1 && early_hold!=96) $fatal(1,"early finite write stall not reached");
     if(task_m>1 && mode_id==1 && !two_live_seen) $fatal(1,"two live contexts were never exercised");
-    if(read_count!=8*(152+16*task_m) || macro_count!=16*task_m)
+    if(read_count!=8*152+16*task_m || macro_count!=16*task_m)
      $fatal(1,"service count mismatch reads=%0d macros=%0d",read_count,macro_count);
+    if(spad_writes!=16*task_m || spad_reads!=7*16*task_m || spad_returns!=spad_reads)
+     $fatal(1,"scratchpad counts fill=%0d issue=%0d return=%0d",spad_writes,spad_reads,spad_returns);
     for(i=0;i<64*task_m;i=i+1) begin
      if(!written[i] || memory['h8000+i]!==golden[i])
       $fatal(1,"INT8 mismatch case=%0d mode=%0d p=%0d o=%0d expected=%h actual=%h written=%b",case_id,mode_id,i/64,i%64,golden[i],memory['h8000+i],written[i]);
@@ -196,7 +234,7 @@ module tb_accel;
   configure(1,0);wr('h00,1);status=1;timeout_cycles=0;
   while(status[0]) begin rd('h04,status);timeout_cycles=timeout_cycles+2;if(timeout_cycles>1000)$fatal(1,"bad-shift reject timeout");end
   if(!status[2] || status[1]) $fatal(1,"bad shift not rejected");
-  $display("PASS RTL protocol: stable waits, no duplicate writes, sticky DONE, invalid config, read and quantization reset abort");
+  $display("PASS RTL protocol: stable waits, no duplicate writes, sticky DONE, invalid config, and read/quantization/scratchpad reset abort");
   $display("PASS ALL RTL");$fclose(summary);$fclose(steady_summary);$finish;
  end
 endmodule
