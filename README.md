@@ -8,6 +8,9 @@ pointwise 卷积。RISC-V 固件装入输入、权重、bias、逐通道 multipl
 完整 K7 流程需要使用者提供授权取得的 JYDD CPU/UART 源码。
 [v0.1.0 发布说明](docs/RELEASE_v0.1.md)
 
+本分支的 [共享 SRAM 请求周转](docs/SRAM_TURNAROUND.md) 记录公开回归升级、
+固定/可变响应模型、请求波形和同频对照。下表保留 v0.1.0 的原始板测。
+
 ```
 运行时共享SRAM ──32bit请求/响应── 权重/参数加载与双输入槽
                                   │

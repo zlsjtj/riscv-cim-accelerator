@@ -1,5 +1,8 @@
 # K7 V2.1 原型
 
+本文保留 v0.1.0 的板级档案。请检出原发布标签执行其原位流步骤。新分支的
+两版同频构建入口见 [共享 SRAM 请求周转](SRAM_TURNAROUND.md)。
+
 板级设计依据用户提供的竞业达 K7 V2.1 资料。原理图
 `xc7k325t-V2.1.pdf` 第4、5、12页给出 FPGA、200 MHz 参考振荡器和 CP2104
 UART。教学 MiniRV XPR 指定 Vivado part `xc7k325tffg900-2`，其
