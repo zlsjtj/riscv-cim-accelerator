@@ -12,11 +12,11 @@ from pathlib import Path
 
 from reference import ROOT, generate
 
-OUT = ROOT / "build/k7_v0.1"
+OUT = ROOT / "build/k7_sram_baseline"
 CPU = ("RF", "Control", "IMMGEN", "CCTL", "ALU", "ACTL", "CSR")
 INCLUDES = ("defines", "myCPU_units", "myCPU_m_ext", "myCPU_bitmanip")
 EXPECTED = [(0, 125), (0, 1), (1, 125), (1, 1)]
-USR_ACCESS = "43494d33"
+USR_ACCESS = "43494d35"
 
 
 def run(command, log):
@@ -230,8 +230,8 @@ def main():
     parser.add_argument("step", choices=("prepare", "sim", "impl", "program"))
     parser.add_argument("--cpu-source", type=Path, help="JYDD source directory with common/ and route_src/")
     parser.add_argument("--gcc-bin", type=Path, help="xPack RV32 GCC bin directory, or put GCC on PATH")
-    parser.add_argument("--out", type=Path, default=OUT, help="Build and capture directory (default build/k7_v0.1)")
-    parser.add_argument("--bitstream", type=Path, help="For program, an existing v0.1 bit beside impl_vivado.log")
+    parser.add_argument("--out", type=Path, default=OUT, help="Build and capture directory")
+    parser.add_argument("--bitstream", type=Path, help="For program, a matching bit beside impl_vivado.log")
     parser.add_argument("--trace-blocks", action="store_true", help="For sim, write task-relative block_trace.csv")
     parser.add_argument("--jtag")
     parser.add_argument("--port")

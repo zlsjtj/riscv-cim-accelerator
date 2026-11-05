@@ -49,6 +49,9 @@ def main():
     ap.add_argument('--simulator',choices=['auto','questa','xsim','iverilog'],default='auto')
     ap.add_argument('--reference-only',action='store_true')
     ap.add_argument('--p1-only',action='store_true',help='blocking M=1/125, separate P1 evidence log')
+    ap.add_argument('--memory', choices=['variable','fixed'], default='variable',
+                    help='variable waits/backpressure, or one-cycle reads and always ready')
+    ap.add_argument('--trace-memory', action='store_true', help='log the first task per-edge')
     inputs = ap.add_mutually_exclusive_group()
     inputs.add_argument('--dataset', choices=['synthetic','model','real'], default='synthetic',
                         help='explicit fixture set; real requires a verified tensor23 export')
@@ -90,11 +93,18 @@ def main():
     if 'PASS tb_units' not in simulate(sim, 'tb_units', [], 'unit_compile.log', 'unit_simulation.log'):
         raise RuntimeError('Simulator did not reach unit PASS')
     plusargs = [f'+NCASES={len(cases)}'] + (['+P1_ONLY'] if args.p1_only else [])
+    prefix = 'fixed_' if args.memory == 'fixed' else ''
+    if args.memory == 'fixed':
+        plusargs.append('+FIXED_MEMORY')
+    if args.trace_memory:
+        plusargs.append('+TRACE_MEMORY')
+        if sim == 'iverilog':
+            plusargs.append('+VCD_TRACE')
     output = simulate(sim, 'tb_accel', plusargs, 'compile.log',
-                      'p1_simulation.log' if args.p1_only else 'simulation.log')
+                      prefix + ('p1_simulation.log' if args.p1_only else 'simulation.log'))
     if 'PASS ALL RTL' not in output:raise RuntimeError('Simulator did not reach complete RTL PASS')
     if args.p1_only:
-        shutil.copyfile(ROOT/'build/results.csv',ROOT/'build/p1_results.csv')
+        shutil.copyfile(ROOT/f'build/{prefix}results.csv',ROOT/f'build/{prefix}p1_results.csv')
     print('PASS RTL units and complete operator;', 'official reference SKIPPED' if args.skip_official_check else 'official reference PASS')
 
 
