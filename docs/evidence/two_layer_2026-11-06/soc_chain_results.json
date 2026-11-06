@@ -1,0 +1,50 @@
+[
+  {
+    "method": 0,
+    "M": 1,
+    "cycles": 9765,
+    "bytes_per_layer": 64,
+    "intermediate_mismatches": 0,
+    "final_mismatches": 0
+  },
+  {
+    "method": 1,
+    "M": 1,
+    "cycles": 9601,
+    "bytes_per_layer": 64,
+    "intermediate_mismatches": 0,
+    "final_mismatches": 0
+  },
+  {
+    "method": 2,
+    "M": 1,
+    "cycles": 46001,
+    "bytes_per_layer": 64,
+    "intermediate_mismatches": 0,
+    "final_mismatches": 0
+  },
+  {
+    "method": 0,
+    "M": 125,
+    "cycles": 47204,
+    "bytes_per_layer": 8000,
+    "intermediate_mismatches": 0,
+    "final_mismatches": 0
+  },
+  {
+    "method": 1,
+    "M": 125,
+    "cycles": 47052,
+    "bytes_per_layer": 8000,
+    "intermediate_mismatches": 0,
+    "final_mismatches": 0
+  },
+  {
+    "method": 2,
+    "M": 125,
+    "cycles": 5493594,
+    "bytes_per_layer": 8000,
+    "intermediate_mismatches": 0,
+    "final_mismatches": 0
+  }
+]

@@ -8,6 +8,10 @@ pointwise 卷积。RISC-V 固件装入输入、权重、bias、逐通道 multipl
 完整 K7 流程需要使用者提供授权取得的 JYDD CPU/UART 源码。
 [v0.1.0 发布说明](docs/RELEASE_v0.1.md)
 
+本分支提供可选的两层一次提交基准。两层均为 64×64 pointwise，
+链式和两次 START 共用中间 SRAM 地址，在同一 K7 50 MHz 位流上
+对照。[两层实测、RV32IM C 基线与复现](docs/TWO_LAYER.md)
+
 K7 构建默认启用请求周转与 8 KiB 双 bank 输入缓存。与 32 位回放相比，
 双 bank 在同一 50 MHz 下将 M125 重叠从 26,719 降至 23,191 拍，
 任务延迟减少 13.20%，缓存仍用两块 RAMB36。[双 bank 实测与逐拍归因](docs/BANKED_REPLAY.md)

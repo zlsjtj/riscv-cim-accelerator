@@ -96,6 +96,10 @@ python tools/k7.py program --jtag $jtagSerial --port $serialPort
 固件的启动串保留原先 scratchpad 实验的文字，配置以 JTAG 读回的
 USR_ACCESS 为准。可用 M1 的 64 字节核对展示运行时配置生效。
 
+两层基准使用 `tools/k7.py --two-layer` 选项，各步骤使用同一个选项和
+同一个输出目录。位流标识为 `43494d45`，由一个固件依次运行两次
+START、链式一次 START 和两层 RV32IM C。[两层复现](TWO_LAYER.md)
+
 原始量化流水版板测位流、日志和结果位于 `build/k7_qpipe/`。有权在本地
 使用该归档时，从 `v0.1.0` 检出对应脚本，用新输出目录保留原始记录。
 
