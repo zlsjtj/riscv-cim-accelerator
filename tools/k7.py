@@ -176,7 +176,7 @@ def parse_resets(output):
     return rows
 
 
-def simulate(source, questa, trace_blocks, turn, cache):
+def simulate(source, questa, trace_blocks, profile_tasks, turn, cache):
     if not (OUT / "work").exists():
         run([questa / "vlib.exe", "work"], "vlib.log")
     sources = cpu_files(source) + sorted((ROOT / "rtl").glob("*.sv")) + [
@@ -193,6 +193,8 @@ def simulate(source, questa, trace_blocks, turn, cache):
     # Existing RF and predictor arrays have power-up initializers as well as
     # always_ff writes. Keep the source intact and allow that Questa diagnostic.
     trace_args = ["+TRACE_BLOCKS"] if trace_blocks else []
+    if profile_tasks:
+        trace_args.append("+PROFILE_TASKS")
     output = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", *generics, "tb_rv_system", *trace_args, "-do",
                   "onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0"],
                  "soc_simulation.log")
@@ -251,6 +253,7 @@ def main():
     parser.add_argument("--out", type=Path, help="Build and capture directory")
     parser.add_argument("--bitstream", type=Path, help="For program, a matching bit beside impl_vivado.log")
     parser.add_argument("--trace-blocks", action="store_true", help="For sim, write task-relative block_trace.csv")
+    parser.add_argument("--profile-tasks", action="store_true", help="For sim, write task-relative task_edges.csv")
     parser.add_argument("--jtag")
     parser.add_argument("--port")
     args = parser.parse_args()
@@ -258,6 +261,8 @@ def main():
         parser.error("--bitstream requires program")
     if args.trace_blocks and args.step != "sim":
         parser.error("--trace-blocks requires sim")
+    if args.profile_tasks and args.step != "sim":
+        parser.error("--profile-tasks requires sim")
     if args.step != "program" and args.cpu_source is None:
         parser.error(f"{args.step} requires --cpu-source pointing to authorized local JYDD sources")
     if args.step == "prepare" and args.gcc_bin is None:
@@ -276,7 +281,7 @@ def main():
     if args.step == "prepare":
         prepare(source, args.gcc_bin.resolve())
     elif args.step == "sim":
-        simulate(source, questa, args.trace_blocks, turn, cache)
+        simulate(source, questa, args.trace_blocks, args.profile_tasks, turn, cache)
     elif args.step == "impl":
         output = run([vivado, "-mode", "batch", "-nojournal", "-log", "impl_vivado.log",
                       "-source", ROOT / "fpga/build_k7.tcl", "-tclargs", source, turn, cache, usr_access],

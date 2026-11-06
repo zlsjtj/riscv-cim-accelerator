@@ -1,5 +1,5 @@
 `timescale 1ns/1ps
-module tb_accel #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
+module tb_accel #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
  reg clk=0; always #5 clk=~clk;
  reg rst_n=0,cfg_valid=0,cfg_write=0;
  reg [7:0] cfg_addr=0;
@@ -15,7 +15,7 @@ module tb_accel #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
  integer clock_count=0,read_count=0,write_count=0,response_count=0,macro_count=0;
  integer first_block[0:7],last_block[0:7],service_count=0;
  integer pending_delay=0,final_hold=0,early_hold=0,task_m=1;
- reg read_pending=0,active=0,hold_seen=0;
+ reg read_pending=0,active=0,hold_seen=0,abort_replay=0;
  reg observed_outstanding=0,fixed_memory=0,vcd_trace=0;
  reg check_rollover=0,expected_ctx;
  reg [7:0] expected_index;
@@ -99,7 +99,9 @@ module tb_accel #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
     end
     if(dut.spad_read) begin
      if(!filled_words[dut.spad_addr]) $fatal(1,"scratchpad replay before current-task fill");
-     cache_reads++;
+     if(INPUT_CACHE==2 && (dut.spad_addr[0] || !filled_words[dut.spad_addr+11'd1]))
+      $fatal(1,"banked replay requires an aligned pair filled by the current task");
+     cache_reads+=INPUT_CACHE==2 ? 2 : 1;
     end
    end
    if(held && (!mem_valid || {mem_write,mem_addr,mem_wdata,mem_wstrb}!==held_request))
@@ -116,12 +118,14 @@ module tb_accel #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
    if(mem_valid && mem_ready) begin
     if(mem_addr>65532 || mem_addr[1:0]!=0) $fatal(1,"invalid memory address %h",mem_addr);
     if(mem_write) begin
-     if(!active) $fatal(1,"write outside task");
+     if(!active && !abort_replay) $fatal(1,"write outside task");
      if(mem_wstrb!=4'hf) $fatal(1,"unexpected partial output");
      if(mem_addr<32'h8000 || mem_addr+4>32'h8000+64*task_m) $fatal(1,"write outside output");
      for(integer b=0;b<4;b=b+1) begin
-      if(written[mem_addr-32'h8000+b]) $fatal(1,"duplicate output address %h",mem_addr+b);
-      written[mem_addr-32'h8000+b]=1;
+      if(active) begin
+       if(written[mem_addr-32'h8000+b]) $fatal(1,"duplicate output address %h",mem_addr+b);
+       written[mem_addr-32'h8000+b]=1;
+      end
       memory[mem_addr+b]=mem_wdata[8*b+:8];
      end
      write_count=write_count+1;
@@ -239,6 +243,20 @@ module tb_accel #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
    if(status!==0 || mem_valid || dut.rd_pending || dut.spad_active || dut.spad_rvalid)
     $fatal(1,"cache control survived partial fill reset");
    $display("PASS RTL reset during partial scratchpad fill");
+  end
+  if(INPUT_CACHE==2) begin
+   // Earlier tile writes commit normally. Reset before consuming the last replay pair.
+   abort_replay=1;
+   configure(1,1);wr('h00,1);
+   for(int elapsed=0; elapsed<20000 && !(dut.spad_rvalid && dut.spad_result_index==14); elapsed++)
+    @(negedge clk);
+   if(!dut.spad_rvalid || dut.spad_result_index!=14) $fatal(1,"last replay pair not reached");
+   rst_n=0;repeat(3) @(negedge clk);rst_n=1;
+   rd('h04,status);
+   if(status!==0 || mem_valid || dut.spad_active || dut.spad_rvalid || dut.input_ready)
+    $fatal(1,"replay tag or input slot survived reset");
+   abort_replay=0;
+   $display("PASS RTL reset with final replay pair pending");
   end
   for(int latency_point=read_latency;latency_point<=latency_limit;latency_point*=2) begin
   read_latency=latency_point;

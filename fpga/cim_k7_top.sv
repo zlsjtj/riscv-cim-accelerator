@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 module cim_k7_top #(
     parameter bit TURNAROUND=1,
-    parameter bit INPUT_CACHE=0
+    parameter int INPUT_CACHE=0
 ) (
     input wire clk_p, clk_n,
     output wire uart_tx

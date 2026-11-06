@@ -4,7 +4,7 @@ module cim_rv_system #(
     parameter ROM_FILE = "firmware.mem",
     parameter RAM_FILE = "sram.mem",
     parameter bit TURNAROUND=1,
-    parameter bit INPUT_CACHE=0
+    parameter int INPUT_CACHE=0
 ) (
     input logic clk, rst_n,
     input logic tx_busy,

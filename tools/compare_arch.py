@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 
-from variants import VARIANTS
+from variants import MATRIX_VARIANTS, VARIANTS
 
 
 def rows(path):
@@ -36,7 +36,7 @@ def extract_physical(path, variant):
     wns, whs = map(float, slack.groups())
     spad, next_addr = map(int, structure.groups())
     turn, cache, _ = VARIANTS[variant]
-    if (wns < 0 or whs < 0 or unconstrained[1] != "0" or spad != 2 * cache or
+    if (wns < 0 or whs < 0 or unconstrained[1] != "0" or spad != 2 * bool(cache) or
             bool(next_addr) != bool(turn) or re.search(r"^REQP-1839#", drc, re.M)):
         raise ValueError(f"{variant}: routed gate failed")
     scopes = ("cim_k7_top", "accel", "(accel)", "macro_unit", "quant_unit", "cpu")
@@ -70,7 +70,7 @@ def capture(build, evidence):
     evidence.mkdir(parents=True, exist_ok=True)
     common = None
     board_identity = None
-    for variant, (_, _, usr_access) in VARIANTS.items():
+    for variant, (_, _, usr_access) in MATRIX_VARIANTS.items():
         path = build / f"k7_matrix_{variant}"
         bit = json.loads((path / "bitstream_metadata.json").read_text(encoding="utf-8"))
         prep = json.loads((path / "build_metadata.json").read_text(encoding="utf-8"))
@@ -126,7 +126,7 @@ def with_gain(records, key_fields):
 def compare(evidence, output):
     output.mkdir(parents=True, exist_ok=True)
     sweep, soc_rows, board_rows, physical, software = [], [], [], [], []
-    for variant, (_, cache, _) in VARIANTS.items():
+    for variant, (_, cache, _) in MATRIX_VARIANTS.items():
         path = evidence / variant
         fixed = rows(path / "fixed.csv")
         keys = {(r["read_latency"], r["M"], r["mode"]) for r in fixed}

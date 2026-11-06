@@ -1,5 +1,5 @@
 `timescale 1ns/1ps
-module tb_rv_system #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
+module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
     logic clk = 1'b0, rst_n = 1'b0;
     always #10 clk = ~clk;
     wire tx_start;
@@ -66,6 +66,25 @@ module tb_rv_system #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
     int trace_file;
     logic trace_done = 1'b0;
     logic trace_ch7 = 1'b0, trace_ctx;
+    int profile_file = 0, profile_task = 0;
+    initial if ($test$plusargs("PROFILE_TASKS")) begin
+        profile_file = $fopen("task_edges.csv", "w");
+        if (!profile_file) $fatal(1, "Cannot open task_edges.csv");
+        $fdisplay(profile_file, "task,event,mode,M,cycle,tile,state,macro_start,macro_busy,input_wait,raw_full,contexts_full,quant_issue,quant_result,write_pending,write_commit,shared_stall,response_wait,replay");
+    end
+    always @(posedge clk) if (profile_file) begin
+        if (dut.start_accepted) profile_task++;
+        if (dut.accel.busy || (dut.accel.done && !was_done))
+            $fdisplay(profile_file, "%0d,%s,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d",
+                      profile_task, dut.warm_reset ? "abort" : dut.accel.done ? "done" : "edge",
+                      dut.accel.mode, dut.accel.task_m, dut.accel.cycles + (dut.accel.busy ? 1 : 0),
+                      dut.accel.tile, dut.accel.state, dut.accel.mac_start, dut.accel.mac_busy,
+                      |(dut.accel.live & ~dut.accel.input_ready),
+                      &(dut.accel.raw_valid | dut.accel.raw_reserved), &dut.accel.live,
+                      dut.accel.q_valid, dut.accel.q_result_valid, |dut.accel.output_ready,
+                      dut.cim_access && dut.mem_write, dut.mem_valid && !dut.mem_ready,
+                      dut.accel.rd_pending && !dut.mem_rvalid, dut.accel.spad_read);
+    end
     initial if ($test$plusargs("TRACE_BLOCKS")) begin
         trace_file = $fopen("block_trace.csv", "w");
         if (!trace_file) $fatal(1, "Cannot open block_trace.csv");
@@ -107,7 +126,7 @@ module tb_rv_system #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
         end else begin
             if (dut.cim_access && !dut.mem_write) shared_reads++;
             if (dut.cim_access && dut.mem_write) shared_writes++;
-            if (dut.accel.spad_read) local_reads++;
+            if (dut.accel.spad_read) local_reads += INPUT_CACHE==2 ? 2 : 1;
             if (dut.accel.spad_write) local_writes++;
             if (traffic_file && dut.accel.done && !was_done)
                 $fdisplay(traffic_file, "%0d,%0d,%0d,%0d,%0d,%0d,%0d", dut.accel.mode,
@@ -150,6 +169,7 @@ module tb_rv_system #(parameter bit TURNAROUND=1, INPUT_CACHE=0);
                     if (reset_count != 2) $fatal(1, "Expected two warm resets");
                     if (software_runs != 2) $fatal(1, "Expected two complete software timer windows");
                     $fclose(traffic_file);
+                    if (profile_file) $fclose(profile_file);
                     $finish;
                 end
                 if (line == "CIM_FAIL") $fatal(1, "RV32I comparison failed");

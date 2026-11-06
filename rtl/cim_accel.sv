@@ -2,7 +2,7 @@
 // Original portable digital peripheral. Local reads return >=1 clock after acceptance.
 module cim_accel #(
  parameter bit TURNAROUND=1,
- parameter bit INPUT_CACHE=0
+ parameter int INPUT_CACHE=0 // 0: bypass, 1: word replay, 2: paired replay
 ) (
  input logic clk, rst_n,
  input logic cfg_valid, cfg_write,
@@ -19,6 +19,8 @@ module cim_accel #(
 );
  localparam IDLE=0, PARAM=1, WEIGHT=2, RUN=3;
  localparam RD_PARAM=0, RD_WEIGHT=1, RD_INPUT=2;
+ localparam BANKED_REPLAY=INPUT_CACHE==2;
+ localparam [3:0] REPLAY_LAST=BANKED_REPLAY ? 4'd14 : 4'd15;
  logic [1:0] state;
  logic busy, done, error;
  logic [31:0] shadow_m, shadow_a, shadow_w, shadow_p, shadow_y, shadow_mode;
@@ -49,7 +51,7 @@ module cim_accel #(
  logic [255:0] input_low[0:1],input_high[0:1];
  logic spad_active, spad_ctx, spad_rvalid, spad_result_ctx;
  logic [3:0] spad_index, spad_result_index;
- logic [31:0] spad_rdata;
+ logic [63:0] spad_rdata;
  logic signed [31:0] partial[0:1][0:7];
  logic [63:0] output_bytes[0:1];
  logic [3:0] quant_index[0:1];
@@ -86,9 +88,11 @@ module cim_accel #(
  wire spad_read = INPUT_CACHE && rst_n && spad_active;
  wire [10:0] spad_addr = spad_write ? {position[rd_ctx][6:0], rd_index[3:0]} :
                                       {position[spad_ctx][6:0], spad_index};
+ wire input_pair = BANKED_REPLAY && spad_rvalid;
  wire input_ctx = spad_rvalid ? spad_result_ctx : rd_ctx;
  wire [3:0] input_index = spad_rvalid ? spad_result_index : rd_index[3:0];
- wire [31:0] input_data = spad_rvalid ? spad_rdata : mem_rdata;
+ wire [31:0] input_data = spad_rvalid ? spad_rdata[31:0] : mem_rdata;
+ wire [3:0] paired_index = input_index | 4'd1;
  assign mem_valid = request_valid || input_follow;
  assign mem_addr = input_follow ? rd_next_addr : request_addr;
 
@@ -99,12 +103,23 @@ module cim_accel #(
   .multiplier(q_mul),.shift(q_shift),.value(q_value));
 
  if(INPUT_CACHE) begin : cache
-  (* ram_style = "block" *) logic [31:0] input_spad[0:2047];
   // The first tile overwrites all words used by a task before any replay.
   // The response uses the old external tag, including with read turnaround.
-  always_ff @(posedge clk) begin
-   if(spad_write) input_spad[spad_addr]<=mem_rdata;
-   else if(spad_read) spad_rdata<=input_spad[spad_addr];
+  if(BANKED_REPLAY) begin : paired
+   for(genvar bank=0;bank<2;bank++) begin : lane
+    (* ram_style = "block" *) logic [31:0] input_spad[0:1023];
+    always_ff @(posedge clk) begin
+     if(spad_write && spad_addr[0]==(bank==1)) input_spad[spad_addr[10:1]]<=mem_rdata;
+     else if(spad_read) spad_rdata[bank*32+:32]<=input_spad[spad_addr[10:1]];
+    end
+   end
+  end else begin : single_word
+   (* ram_style = "block" *) logic [31:0] input_spad[0:2047];
+   always_ff @(posedge clk) begin
+    if(spad_write) input_spad[spad_addr]<=mem_rdata;
+    else if(spad_read) spad_rdata[31:0]<=input_spad[spad_addr];
+   end
+   assign spad_rdata[63:32]='0;
   end
   always_ff @(posedge clk) begin
    if(!rst_n) begin
@@ -115,8 +130,8 @@ module cim_accel #(
     if(spad_read) begin
      spad_result_ctx<=spad_ctx;
      spad_result_index<=spad_index;
-     spad_index<=spad_index+1'b1;
-     if(spad_index==15) spad_active<=0;
+     spad_index<=spad_index+(BANKED_REPLAY ? 4'd2 : 4'd1);
+     if(spad_index==REPLAY_LAST) spad_active<=0;
     end else if(state==RUN && tile!=0) begin
      // Exclude the context of the last word still in the return stage.
      if(live[0] && !input_ready[0] && !(spad_rvalid && !spad_result_ctx)) begin
@@ -281,8 +296,12 @@ module cim_accel #(
      input_low[input_ctx][(input_index*4+k)*4 +:4]<=input_data[k*8 +:4];
      input_high[input_ctx][(input_index*4+k)*4 +:4]<={~input_data[k*8+7],input_data[k*8+4 +:3]};
     end
-    fill_word[input_ctx]<=fill_word[input_ctx]+1;
-    if(input_index==15) input_ready[input_ctx]<=1;
+    if(input_pair) for(k=0;k<4;k=k+1) begin
+     input_low[input_ctx][(paired_index*4+k)*4 +:4]<=spad_rdata[32+k*8 +:4];
+     input_high[input_ctx][(paired_index*4+k)*4 +:4]<={~spad_rdata[39+k*8],spad_rdata[36+k*8 +:3]};
+    end
+    fill_word[input_ctx]<=fill_word[input_ctx]+(input_pair ? 5'd2 : 5'd1);
+    if(input_index==(input_pair ? 4'd14 : 4'd15)) input_ready[input_ctx]<=1;
    end
 
    // One shared 32-bit port; at most one outstanding read and a reserved destination.
