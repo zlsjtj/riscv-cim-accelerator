@@ -8,8 +8,11 @@ import shutil
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 
+import kws_fixture
 from reference import ROOT, generate
 from variants import DEFAULT_K7_VARIANT, VARIANTS
 
@@ -58,7 +61,7 @@ def prepared_hashes():
                                                "cpu_include/myCPU_m_ext.sv")}
 
 
-def check_prepared(source, two_layer, retain, prefetch, early_write):
+def check_prepared(source, two_layer, retain, prefetch, early_write, fixture, diagnostic):
     metadata = OUT / "build_metadata.json"
     if not metadata.is_file():
         raise ValueError("Run k7.py prepare with the same --out and --cpu-source first")
@@ -66,7 +69,9 @@ def check_prepared(source, two_layer, retain, prefetch, early_write):
     if (record.get("cpu_sources") != cpu_hashes(source) or record.get("prepared_files") != prepared_hashes()
             or record.get("two_layer", False) != two_layer or record.get("retain", False) != retain
             or record.get("prefetch", False) != prefetch
-            or record.get("early_write", False) != early_write):
+            or record.get("early_write", False) != early_write
+            or record.get("diagnostic", False) != diagnostic
+            or record.get("kws_fixture_sha256") != (kws_fixture.load_fixture(fixture)[1]["fixture_sha256"] if fixture else None)):
         raise ValueError("CPU sources or generated files differ from prepare. Run k7.py prepare again")
 
 
@@ -84,18 +89,27 @@ def stage_m_unit(source):
             "staged_sha256": sha(patched), "change": "M-unit reset is sampled on clk"}
 
 
-def prepare(source, tools, two_layer, retain, prefetch, early_write):
+def prepare(source, tools, two_layer, retain, prefetch, early_write, fixture, diagnostic):
     sources = cpu_hashes(source)
-    cases = generate("real")
-    case = next((case for case in cases if case["M"] == 125 and "activation_sha256" in case), None)
-    if case is None:
-        raise ValueError("A verified real tensor23 export is required. Run tools/run.py --real-activations.")
-    idx = case["index"]
-    memory = bytes.fromhex((ROOT / f"build/vectors/mem{idx}.hex").read_text())
-    golden = bytes.fromhex((ROOT / f"build/vectors/gold{idx}.hex").read_text())
-    activation = memory[0x1000:0x1000+8000]
-    if len(golden) != 8000 or hashlib.sha256(activation).hexdigest() != case["activation_sha256"]:
-        raise ValueError("Board input fixture disagrees with verified tensor23")
+    fixture_metadata = {}
+    if fixture:
+        image, manifest = kws_fixture.load_fixture(fixture)
+        ram = bytearray(image)
+        fixture_metadata = dict(kws_fixture_sha256=manifest["fixture_sha256"], diagnostic=diagnostic)
+    else:
+        cases = generate("real")
+        case = next((case for case in cases if case["M"] == 125 and "activation_sha256" in case), None)
+        if case is None:
+            raise ValueError("A verified real tensor23 export is required. Run tools/run.py --real-activations.")
+        idx = case["index"]
+        memory = bytes.fromhex((ROOT / f"build/vectors/mem{idx}.hex").read_text())
+        golden = bytes.fromhex((ROOT / f"build/vectors/gold{idx}.hex").read_text())
+        activation = memory[0x1000:0x1000+8000]
+        if len(golden) != 8000 or hashlib.sha256(activation).hexdigest() != case["activation_sha256"]:
+            raise ValueError("Board input fixture disagrees with verified tensor23")
+        ram = bytearray(65536)
+        fixture_metadata = dict(fixture_case=idx, activation_sha256=case["activation_sha256"],
+                                golden_sha256=hashlib.sha256(golden).hexdigest())
     m_unit = stage_m_unit(source)
     cc = tools / "riscv-none-elf-gcc.exe"
     copy = tools / "riscv-none-elf-objcopy.exe"
@@ -107,23 +121,28 @@ def prepare(source, tools, two_layer, retain, prefetch, early_write):
         defines.append("-DCIM_PREFETCH_BENCHMARK")
     if early_write:
         defines.append("-DCIM_EARLY_WRITE_BENCHMARK")
+    linker, main_source = "k7_boot.ld", "k7_main.c"
+    if fixture:
+        linker, main_source = "kws_k7.ld", "kws_main.c"
+        defines = ["-DKWS_K7", "-fstack-usage"]
+        if diagnostic:
+            defines.append("-DKWS_DIAGNOSTIC")
     run([cc, "-march=rv32im", "-mabi=ilp32", "-Os", "-ffreestanding", *defines,
          "-fno-builtin", "-msmall-data-limit=0", "-mno-relax",
          "-ffunction-sections", "-fdata-sections", "-nostdlib",
          "-Wl,--gc-sections,--no-relax,-Map=firmware.map",
-         "-T", ROOT / "sw/k7_boot.ld", ROOT / "sw/k7_boot.S", ROOT / "sw/k7_main.c",
+         "-T", ROOT / "sw" / linker, ROOT / "sw/k7_boot.S", ROOT / "sw" / main_source,
          ROOT / "sw/cim.c", ROOT / "sw/cim_sw.c", "-lgcc", "-o", "firmware.elf"], "firmware_build.log")
     for section in ("text", "data"):
         run([copy, "-O", "binary", "-j", "." + section, "firmware.elf", section + ".bin"],
             "firmware_" + section + ".log")
     text = (OUT / "text.bin").read_bytes()
-    ram = bytearray(65536)
     data = (OUT / "data.bin").read_bytes()
     ram[:len(data)] = data
     if two_layer:
         from chain_fixture import populate
         chain = populate(ram, idx)
-    else:
+    elif not fixture:
         ram[0xa000:0xa000+8000] = activation
         ram[0xc000:0xd000] = memory[0x4000:0x5000]
         ram[0xd000:0xd300] = memory[0x6000:0x6300]
@@ -134,8 +153,7 @@ def prepare(source, tools, two_layer, retain, prefetch, early_write):
         "cpu_source_root": str(source), "cpu_sources": sources,
         "prepared_files": prepared_hashes(),
         "firmware_elf_sha256": sha(OUT / "firmware.elf"), "text_bytes": len(text),
-        "fixture_case": idx, "activation_sha256": case["activation_sha256"],
-        "golden_sha256": hashlib.sha256(golden).hexdigest(),
+        **fixture_metadata,
         "two_layer": two_layer,
         "retain": retain,
         "prefetch": prefetch,
@@ -212,7 +230,9 @@ def parse_resets(output):
     return rows
 
 
-def simulate(source, questa, trace_blocks, profile_tasks, turn, cache, two_layer):
+def simulate(source, questa, trace_blocks, profile_tasks, turn, cache, two_layer, fixture, diagnostic):
+    if fixture:
+        (OUT / "soc_kws_results.json").unlink(missing_ok=True)
     if not (OUT / "work").exists():
         run([questa / "vlib.exe", "work"], "vlib.log")
     sources = cpu_files(source) + sorted((ROOT / "rtl").glob("*.sv")) + [
@@ -227,6 +247,8 @@ def simulate(source, questa, trace_blocks, profile_tasks, turn, cache, two_layer
         retain_args.append("+TEST_PREFETCH")
     if cache == 5:
         retain_args.append("+TEST_EARLY_WRITE")
+    if fixture:
+        retain_args.append("+TEST_KWS")
     counter = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", *generics, "tb_rv_system",
                    control_test, *retain_args, "-do",
                    "onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0"],
@@ -243,6 +265,10 @@ def simulate(source, questa, trace_blocks, profile_tasks, turn, cache, two_layer
     output = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", *generics, "tb_rv_system", *trace_args, *retain_args, "-do",
                   "onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0"],
                  "soc_simulation.log")
+    if fixture:
+        result = kws_fixture.parse_results(output, fixture, diagnostic, OUT / "soc_tensors")
+        (OUT / "soc_kws_results.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        return
     if two_layer:
         (OUT / "soc_chain_results.json").write_text(json.dumps(parse_chain_results(output, cache + 1), indent=2), encoding="utf-8")
         return
@@ -251,7 +277,15 @@ def simulate(source, questa, trace_blocks, profile_tasks, turn, cache, two_layer
     (OUT / "soc_cpu_results.json").write_text(json.dumps(parse_cpu_results(output), indent=2), encoding="utf-8")
 
 
-def program(vivado, target, port, archive, variant, usr_access, two_layer):
+def capture_uart(uart, transcript, stop, seconds):
+    deadline = time.monotonic() + seconds
+    while not stop.is_set() and time.monotonic() < deadline:
+        transcript += uart.read(512)
+        if b"CIM_PASS\n" in transcript or b"CIM_FAIL\n" in transcript:
+            return
+
+
+def program(vivado, target, port, archive, variant, usr_access, two_layer, fixture, diagnostic):
     import serial
 
     bit = archive if archive else OUT / "cim_k7.bit"
@@ -268,22 +302,35 @@ def program(vivado, target, port, archive, variant, usr_access, two_layer):
         raise ValueError("Bitstream SHA-256 or USR_ACCESS disagrees with the selected configuration")
     if not archive and record.get("prepared_files") != prepared_hashes():
         raise ValueError("Prepared images changed since implementation. Run impl again")
+    if fixture and (record.get("kws_fixture_sha256") != kws_fixture.load_fixture(fixture)[1]["fixture_sha256"]
+                    or record.get("diagnostic") != diagnostic):
+        raise ValueError("Bitstream disagrees with the KWS fixture or diagnostic configuration")
+    if fixture:
+        (OUT / "board_results.json").unlink(missing_ok=True)
     transcript = bytearray()
     with serial.Serial(port, 115200, timeout=0.25) as uart:
         uart.reset_input_buffer()
-        run([vivado, "-mode", "batch", "-nojournal", "-log", "program_vivado.log",
-             "-source", ROOT / "fpga/program_k7.tcl", "-tclargs", target, bit, usr_access], "program.log")
-        deadline = time.monotonic() + 20
-        while time.monotonic() < deadline:
-            transcript += uart.read(512)
-            if b"CIM_PASS\n" in transcript or b"CIM_FAIL\n" in transcript:
-                break
+        stop = Event()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            capture = pool.submit(capture_uart, uart, transcript, stop, 120)
+            try:
+                run([vivado, "-mode", "batch", "-nojournal", "-log", "program_vivado.log",
+                     "-source", ROOT / "fpga/program_k7.tcl", "-tclargs", target, bit, usr_access], "program.log")
+                capture.result(timeout=75 if diagnostic else 20)
+            except TimeoutError:
+                pass  # Save the partial transcript before reporting missing results.
+            finally:
+                stop.set()
     (OUT / "board_uart.log").write_bytes(transcript)
     output = transcript.decode("ascii", errors="replace")
-    print(output)
+    print("\n".join(line for line in output.splitlines() if not line.startswith("KWS_TENSOR ")))
     result = {"jtag_serial": target, "uart_port": port, "uart_baud": 115200,
               "variant": variant, "bit_sha256": sha(bit), "usr_access": usr_access}
-    if two_layer:
+    if fixture:
+        result.update(kws_fixture.parse_results(output, fixture, diagnostic, OUT / "board_tensors"),
+                      diagnostic=diagnostic)
+        result["kws_fixture_sha256"] = result["fixture_sha256"]
+    elif two_layer:
         result["chain"] = parse_chain_results(output, VARIANTS[variant][1] + 1)
     else:
         result.update(resets=parse_resets(output), tasks=parse_results(output), software=parse_cpu_results(output))
@@ -301,12 +348,19 @@ def main():
                         help=f"hardware configuration (default: {DEFAULT_K7_VARIANT})")
     parser.add_argument("--out", type=Path, help="Build and capture directory")
     parser.add_argument("--two-layer", action="store_true", help="run the banked two-layer benchmark firmware")
+    parser.add_argument("--kws", type=Path, metavar="FIXTURE", help="run the real KWS fixture instead of the historical benchmark")
+    parser.add_argument("--diagnostic", action="store_true", help="append a separate KWS tensor capture run")
     parser.add_argument("--bitstream", type=Path, help="For program, a matching bit beside impl_vivado.log")
     parser.add_argument("--trace-blocks", action="store_true", help="For sim, write task-relative block_trace.csv")
     parser.add_argument("--profile-tasks", action="store_true", help="For sim, write task-relative task_edges.csv")
     parser.add_argument("--jtag")
     parser.add_argument("--port")
     args = parser.parse_args()
+    fixture = args.kws.resolve() if args.kws else None
+    if args.diagnostic and not fixture:
+        parser.error("--diagnostic requires --kws")
+    if fixture and (args.two_layer or args.variant != "banked"):
+        parser.error("--kws uses the banked single-task hardware for each PW")
     early_write = args.variant == "banked-early-write"
     prefetch = args.variant == "banked-prefetch" or early_write
     retain = args.variant == "banked-retain" or prefetch
@@ -335,17 +389,20 @@ def main():
         default_out = "k7_interlayer_schedule"
     if args.two_layer and not retain:
         usr_access = "43494d45"
+    if fixture:
+        default_out = "k7_kws_diag" if args.diagnostic else "k7_kws"
+        usr_access = "43494d4a" if args.diagnostic else "43494d49"
     OUT = (args.out or ROOT / "build" / default_out).resolve()
     source = args.cpu_source.resolve() if args.cpu_source else None
     vivado = Path(os.environ.get("VIVADO_BIN", "E:/Xilinx/Vivado/2023.2/bin")) / "vivado.bat"
     questa = Path(os.environ.get("QUESTA_BIN", "E:/questasim64_2024.1/win64"))
     OUT.mkdir(parents=True, exist_ok=True)
     if args.step in ("sim", "impl"):
-        check_prepared(source, args.two_layer, retain, prefetch, early_write)
+        check_prepared(source, args.two_layer, retain, prefetch, early_write, fixture, args.diagnostic)
     if args.step == "prepare":
-        prepare(source, args.gcc_bin.resolve(), args.two_layer, retain, prefetch, early_write)
+        prepare(source, args.gcc_bin.resolve(), args.two_layer, retain, prefetch, early_write, fixture, args.diagnostic)
     elif args.step == "sim":
-        simulate(source, questa, args.trace_blocks, args.profile_tasks, turn, cache, args.two_layer)
+        simulate(source, questa, args.trace_blocks, args.profile_tasks, turn, cache, args.two_layer, fixture, args.diagnostic)
     elif args.step == "impl":
         output = run([vivado, "-mode", "batch", "-nojournal", "-log", "impl_vivado.log",
                       "-source", ROOT / "fpga/build_k7.tcl", "-tclargs", source, turn, cache, usr_access],
@@ -355,10 +412,13 @@ def main():
         record = {"bit_sha256": sha(OUT / "cim_k7.bit"), "usr_access": usr_access,
                   "variant": args.variant, "turnaround": turn, "input_cache": cache,
                   "prepared_files": prepared_hashes(), "two_layer": args.two_layer}
+        if fixture:
+            record.update(kws_fixture_sha256=kws_fixture.load_fixture(fixture)[1]["fixture_sha256"],
+                          diagnostic=args.diagnostic)
         (OUT / "bitstream_metadata.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
     else:
         program(vivado, args.jtag, args.port, args.bitstream.resolve() if args.bitstream else None,
-                args.variant, usr_access, args.two_layer)
+                args.variant, usr_access, args.two_layer, fixture, args.diagnostic)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ import shutil
 import subprocess
 
 from chain_fixture import populate
+import kws_fixture
 from reference import ROOT, make_case
 
 
@@ -56,18 +57,27 @@ def stage_ibex(directory):
             shutil.copyfile(source, dest)
 
 
-def build_firmware(work, m, cc):
-    vectors = work / "vectors"
-    make_case(0, 125, out=vectors)
-    ram = bytearray(65536)
-    fixture = populate(ram, 0, vectors)
+def build_firmware(work, m, cc, fixture_path=None, diagnostic=False):
+    if fixture_path:
+        ram, fixture = kws_fixture.load_fixture(fixture_path)
+        source = ROOT / "sw/kws_main.c"
+        defines = ["-DKWS_DIAGNOSTIC"] if diagnostic else []
+        extra_sources = [ROOT / "sw/cim_sw.c"]
+    else:
+        vectors = work / "vectors"
+        make_case(0, 125, out=vectors)
+        ram = bytearray(65536)
+        fixture = populate(ram, 0, vectors)
+        source = SIM / "main.c"
+        defines = [f"-DCIM_M_ROWS={m}"]
+        extra_sources = []
     (work / "fixture.bin").write_bytes(ram)
     (work / "fixture.S").write_text('.section .fixture,"a",@progbits\n.incbin "fixture.bin"\n')
     run([cc, "-march=rv32im", "-mabi=ilp32", "-Os", "-ffreestanding", "-fno-builtin",
          "-msmall-data-limit=0", "-mno-relax", "-ffunction-sections", "-fdata-sections",
-         "-nostdlib", "-Wl,--gc-sections,--no-relax", f"-DCIM_M_ROWS={m}",
+         "-nostdlib", "-Wl,--gc-sections,--no-relax", *defines,
          "-I", ROOT / "sw", "-T", SIM / "link.ld", ROOT / "sw/k7_boot.S",
-         SIM / "main.c", ROOT / "sw/cim.c", "fixture.S", "-lgcc", "-o", "firmware.elf"],
+         source, ROOT / "sw/cim.c", *extra_sources, "fixture.S", "-lgcc", "-o", "firmware.elf"],
         cwd=work, log=work / "firmware.log")
     return ram, fixture
 
@@ -104,30 +114,63 @@ def verify(work, m, ram, fixture):
           f"CiM {core} cycles\nResults: {work}")
 
 
+def verify_kws(work, fixture, diagnostic):
+    cpu = (work / "ibex_simple_system.log").read_text(encoding="ascii")
+    sim = (work / "simulator.log").read_text(encoding="ascii", errors="replace")
+    result = kws_fixture.parse_results(cpu, fixture, diagnostic, work)
+    hardware = re.findall(r"^CIM_HW (\d+) (\d+) (\d+) (\d+)\s*$", sim, re.M)
+    starts = len(kws_fixture.CASES) * 2 * (2 if diagnostic else 1)
+    if hardware != [(str(starts), str(starts), str(3216*starts), str(2000*starts))]:
+        raise ValueError(f"Unexpected KWS START/DONE/SRAM counts: {hardware}")
+    result.update(ibex_revision=IBEX_REV, hardware_starts=starts, hardware_done=starts,
+                  accelerator_sram_reads=3216*starts, accelerator_sram_writes=2000*starts,
+                  firmware_sha256=kws_fixture.digest((work / "firmware.elf").read_bytes()))
+    (work / "result.json").write_text(json.dumps(result, indent=2) + "\n")
+    for row in result["modes"]:
+        print(f"PASS {row['sample']} {row['mode']}: {row['total_cycles']} cycles, 8000 final bytes")
+    print(f"Results: {work}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--m", type=int, choices=(1, 125), default=1)
+    workload = parser.add_mutually_exclusive_group()
+    workload.add_argument("--m", type=int, choices=(1, 125), default=1)
     parser.add_argument("--out", type=Path, default=ROOT / "build/ibex")
+    workload.add_argument("--kws", type=Path, metavar="FIXTURE", help="run the real KWS subgraph")
+    parser.add_argument("--diagnostic", action="store_true", help="append a separate KWS tensor capture run")
+    parser.add_argument("--trace", action="store_true", help="enable the Ibex instruction trace for KWS")
     args = parser.parse_args()
+    if (args.diagnostic or args.trace) and not args.kws:
+        parser.error("--diagnostic and --trace require --kws")
     cc = os.environ.get("RISCV_CC", "riscv64-unknown-elf-gcc")
     for tool in ("git", "fusesoc", "verilator", "g++", "make", cc):
         if not shutil.which(tool):
             parser.error(f"missing {tool}. See docs/IBEX.md for dependencies")
     out = args.out.resolve()
-    work = out / f"M{args.m}"
+    if args.kws:
+        work = out / ("kws_diagnostic" if args.diagnostic else "kws")
+    else:
+        work = out / f"M{args.m}"
     work.mkdir(parents=True, exist_ok=True)
     for name in ("result.json", "intermediate.bin", "final.bin", "ibex_simple_system.log"):
         (work / name).unlink(missing_ok=True)
+    for path in work.glob("case*_tensor*.bin"):
+        path.unlink()
     upstream = out / "upstream"
     stage_ibex(upstream)
-    ram, fixture = build_firmware(work, args.m, cc)
+    ram, fixture = build_firmware(work, args.m, cc, args.kws, args.diagnostic)
     sim = out / "sim"
     run(["fusesoc", "--cores-root", upstream, "run", "--target=sim", "--setup", "--build",
          "--build-root", sim, CORE], cwd=upstream, log=out / "build.log")
     # The segmented loader honors the 0x80 boot offset and fixture LMA.
-    run([sim / SIM_BINARY, "-c", 5_000_000, "--load-elf=firmware.elf"],
+    limit = 80_000_000 if args.kws else 5_000_000
+    extra = ["+ibex_tracer_enable=0"] if args.kws and not args.trace else []
+    run([sim / SIM_BINARY, "-c", limit, "--load-elf=firmware.elf", *extra],
         cwd=work, log=work / "simulator.log")
-    verify(work, args.m, ram, fixture)
+    if args.kws:
+        verify_kws(work, args.kws, args.diagnostic)
+    else:
+        verify(work, args.m, ram, fixture)
 
 
 if __name__ == "__main__":

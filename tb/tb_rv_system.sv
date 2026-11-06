@@ -18,6 +18,8 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
 
     logic counter_test;
     logic chain_test, chain_control_test, retain_test, prefetch_test, early_write_test;
+    logic kws_test, kws_final_read;
+    int kws_windows = 0, kws_starts, kws_dones, kws_reads, kws_writes, kws_dw_bytes, kws_cpu_pw_words;
     int chain_windows = 0, chain_starts, chain_dones, chain_mid_writes, chain_final_writes;
     int chain_core_cycles, chain_mid_reads, chain_shared_reads, chain_copies;
     int chain_prefetches, chain_early_writes, chain_handoffs;
@@ -42,10 +44,10 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
         force dut.cpu_mask=2'b10;
         force dut.cpu_wen=test_wen;
         write_test_cfg('h08,1);
-        write_test_cfg('h0c,'h8010a000);
-        write_test_cfg('h10,'h8010c000);
-        write_test_cfg('h14,'h8010d000);
-        write_test_cfg('h18,'h80108000);
+        write_test_cfg('h0c,kws_test ? 'h80108000 : 'h8010a000);
+        write_test_cfg('h10,kws_test ? 'h80103000 : 'h8010c000);
+        write_test_cfg('h14,kws_test ? 'h80105000 : 'h8010d000);
+        write_test_cfg('h18,kws_test ? 'h80106000 : 'h80108000);
         write_test_cfg('h00,1);
         wait(dut.committed_writes!=0);
         // Reject a START while busy. Account for any write committed that edge.
@@ -325,13 +327,55 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
                 chain_final_writes == chain_words)
                 chain_final_read = 1;
         end
-        if (!chain_test && dut.sw_active && dut.cpu_store && dut.cpu_store_word >= 14'h2000 &&
+        if (kws_test && dut.sw_active) begin
+            if (tx_start) $fatal(1, "UART output inside KWS timing window");
+            if (dut.start_accepted) begin
+                if ((kws_windows % 2) || kws_starts >= 2 ||
+                    (kws_starts == 0 && kws_dw_bytes != 0) ||
+                    (kws_starts == 1 && (kws_dones != 1 || kws_dw_bytes != 8000)))
+                    $fatal(1, "KWS START out of order with CPU DW");
+                kws_starts++;
+            end
+            if (dut.accel.done && !was_done) kws_dones++;
+            if (dut.cim_access && !dut.mem_write) kws_reads++;
+            if (dut.cim_access && dut.mem_write) kws_writes++;
+            if (dut.cpu_store && dut.cpu_store_word >= 14'h400 && dut.cpu_store_word < 14'hbd0) begin
+                if ((kws_windows % 2 == 0 && (kws_starts != 1 || kws_dones != 1)) ||
+                    (kws_windows % 2 == 1 && kws_cpu_pw_words != 2000))
+                    $fatal(1, "CPU DW wrote A outside the two PW stages");
+                kws_dw_bytes += $countones(dut.cpu_store_lanes);
+            end
+            if (dut.cpu_store && dut.cpu_store_word >= 14'h1800 && dut.cpu_store_word < 14'h1fd0) begin
+                if (dut.cpu_store_lanes != 4'hf || !(kws_windows % 2) ||
+                    (kws_cpu_pw_words >= 2000 && kws_dw_bytes != 8000))
+                    $fatal(1, "CPU PW wrote B before DW completed or during hybrid");
+                kws_cpu_pw_words++;
+            end
+            if (!dut.cpu_wen && dut.cpu_addr == 32'h80107f3c &&
+                (kws_dones == 2 || kws_cpu_pw_words == 4000))
+                kws_final_read=1;
+        end
+        if (!chain_test && !kws_test && dut.sw_active && dut.cpu_store && dut.cpu_store_word >= 14'h2000 &&
             dut.cpu_store_word < 14'h27d0) begin
             software_output_words++;
             last_software_commit = dut.sw_cycles+1;
         end
         if (dut.run_n && dut.cpu_wen && dut.cpu_mask == 2'b10 && dut.cpu_addr == dut.SW_TIMER) begin
-            if (chain_test && dut.cpu_wdata[0]) begin
+            if (kws_test && dut.cpu_wdata[0]) begin
+                kws_starts=0; kws_dones=0; kws_reads=0; kws_writes=0;
+                kws_dw_bytes=0; kws_cpu_pw_words=0; kws_final_read=0;
+            end else if (kws_test) begin
+                if (!dut.sw_active || !kws_final_read || kws_dw_bytes != 8000 ||
+                    (kws_windows % 2 == 0 && (kws_starts != 2 || kws_dones != 2 ||
+                        kws_reads != 6432 || kws_writes != 4000 || kws_cpu_pw_words != 0)) ||
+                    (kws_windows % 2 == 1 && (kws_starts != 0 || kws_dones != 0 ||
+                        kws_reads != 0 || kws_writes != 0 || kws_cpu_pw_words != 4000)))
+                    $fatal(1, "Incomplete KWS timer window %0d", kws_windows);
+                $display("KWS_WINDOW case=%0d mode=%0d starts=%0d done=%0d reads=%0d writes=%0d dw_bytes=%0d cpu_pw_words=%0d",
+                         kws_windows / 2, kws_windows % 2, kws_starts, kws_dones, kws_reads, kws_writes,
+                         kws_dw_bytes, kws_cpu_pw_words);
+                kws_windows++;
+            end else if (chain_test && dut.cpu_wdata[0]) begin
                 chain_starts=0; chain_dones=0; chain_core_cycles=0;
                 chain_mid_writes=0; chain_final_writes=0; chain_final_read=0;
                 chain_mid_reads=0; chain_shared_reads=0; chain_copies=0; chain_copied='0; chain_prefetches=0;
@@ -380,7 +424,9 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
             if (tx_data == 10) begin
                 $display("%s", line);
                 if (line == "CIM_PASS") begin
-                    if (chain_test) begin
+                    if (kws_test) begin
+                        if (kws_windows != 4) $fatal(1, "Expected four complete KWS timing windows");
+                    end else if (chain_test) begin
                         if (chain_windows != 2*chain_methods) $fatal(1, "Missing complete chain timer windows");
                     end else begin
                         if (reset_count != 2) $fatal(1, "Expected two warm resets");
@@ -399,6 +445,7 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
     initial begin
         counter_test = $test$plusargs("TEST_START_COUNTER");
         chain_test = $test$plusargs("TEST_CHAIN");
+        kws_test = $test$plusargs("TEST_KWS");
         chain_control_test = $test$plusargs("TEST_CHAIN_CONTROL");
         retain_test = $test$plusargs("TEST_RETAIN");
         prefetch_test = $test$plusargs("TEST_PREFETCH");
@@ -419,7 +466,7 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
             test_chain_control();
             begin repeat (20000) @(posedge clk); $fatal(1, "Chain control test timed out"); end
         join
-        repeat (chain_test ? 9000000 : 4000000) @(posedge clk);
+        repeat (kws_test ? 80000000 : chain_test ? 9000000 : 4000000) @(posedge clk);
         $fatal(1, "RV32IM firmware timed out");
     end
 endmodule
