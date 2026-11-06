@@ -51,7 +51,7 @@ module cim_accel #(
  logic [255:0] input_low[0:1],input_high[0:1];
  logic spad_active, spad_ctx, spad_rvalid, spad_result_ctx;
  logic [3:0] spad_index, spad_result_index;
- logic [63:0] spad_rdata;
+ logic [31:0] spad_rdata, spad_rdata_hi;
  logic signed [31:0] partial[0:1][0:7];
  logic [63:0] output_bytes[0:1];
  logic [3:0] quant_index[0:1];
@@ -91,7 +91,7 @@ module cim_accel #(
  wire input_pair = BANKED_REPLAY && spad_rvalid;
  wire input_ctx = spad_rvalid ? spad_result_ctx : rd_ctx;
  wire [3:0] input_index = spad_rvalid ? spad_result_index : rd_index[3:0];
- wire [31:0] input_data = spad_rvalid ? spad_rdata[31:0] : mem_rdata;
+ wire [31:0] input_data = spad_rvalid ? spad_rdata : mem_rdata;
  wire [3:0] paired_index = input_index | 4'd1;
  assign mem_valid = request_valid || input_follow;
  assign mem_addr = input_follow ? rd_next_addr : request_addr;
@@ -108,18 +108,21 @@ module cim_accel #(
   if(BANKED_REPLAY) begin : paired
    for(genvar bank=0;bank<2;bank++) begin : lane
     (* ram_style = "block" *) logic [31:0] input_spad[0:1023];
+    logic [31:0] read_data;
     always_ff @(posedge clk) begin
      if(spad_write && spad_addr[0]==(bank==1)) input_spad[spad_addr[10:1]]<=mem_rdata;
-     else if(spad_read) spad_rdata[bank*32+:32]<=input_spad[spad_addr[10:1]];
+     else if(spad_read) read_data<=input_spad[spad_addr[10:1]];
     end
+    if(bank==0) assign spad_rdata=read_data;
+    else assign spad_rdata_hi=read_data;
    end
   end else begin : single_word
    (* ram_style = "block" *) logic [31:0] input_spad[0:2047];
    always_ff @(posedge clk) begin
     if(spad_write) input_spad[spad_addr]<=mem_rdata;
-    else if(spad_read) spad_rdata[31:0]<=input_spad[spad_addr];
+    else if(spad_read) spad_rdata<=input_spad[spad_addr];
    end
-   assign spad_rdata[63:32]='0;
+   assign spad_rdata_hi='0;
   end
   always_ff @(posedge clk) begin
    if(!rst_n) begin
@@ -143,7 +146,7 @@ module cim_accel #(
    end
   end
  end else begin : no_cache
-  assign {spad_active,spad_ctx,spad_index,spad_rvalid,spad_result_ctx,spad_result_index,spad_rdata}='0;
+  assign {spad_active,spad_ctx,spad_index,spad_rvalid,spad_result_ctx,spad_result_index,spad_rdata,spad_rdata_hi}='0;
  end
 
  always_comb begin
@@ -297,8 +300,8 @@ module cim_accel #(
      input_high[input_ctx][(input_index*4+k)*4 +:4]<={~input_data[k*8+7],input_data[k*8+4 +:3]};
     end
     if(input_pair) for(k=0;k<4;k=k+1) begin
-     input_low[input_ctx][(paired_index*4+k)*4 +:4]<=spad_rdata[32+k*8 +:4];
-     input_high[input_ctx][(paired_index*4+k)*4 +:4]<={~spad_rdata[39+k*8],spad_rdata[36+k*8 +:3]};
+     input_low[input_ctx][(paired_index*4+k)*4 +:4]<=spad_rdata_hi[k*8 +:4];
+     input_high[input_ctx][(paired_index*4+k)*4 +:4]<={~spad_rdata_hi[7+k*8],spad_rdata_hi[4+k*8 +:3]};
     end
     fill_word[input_ctx]<=fill_word[input_ctx]+(input_pair ? 5'd2 : 5'd1);
     if(input_index==(input_pair ? 4'd14 : 4'd15)) input_ready[input_ctx]<=1;
