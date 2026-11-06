@@ -63,7 +63,7 @@ def validate(weights, bias, mult, shift):
             raise ValueError(f'channel {o} unsupported quantization')
 
 
-def make_case(index, m, model=None, activation=None):
+def make_case(index, m, model=None, activation=None, *, out=None):
     rng = random.Random(0xC1A000 + index)
     x = [[rng.randrange(-128, 128) for _ in range(64)] for _ in range(m)]
     # Include exact zero input, all-ones nibbles, negative weights and U14 MSB.
@@ -96,7 +96,8 @@ def make_case(index, m, model=None, activation=None):
         for o in range(64):
             acc = bias[o] + sum((q+128)*w for q, w in zip(row, weights[o]))
             golden.append(quantize(acc, mult[o], shift[o]) & 255)
-    out = ROOT / 'build/vectors'
+    if out is None:
+        out = ROOT / 'build/vectors'
     out.mkdir(parents=True, exist_ok=True)
     (out / f'mem{index}.hex').write_text('\n'.join(f'{b:02x}' for b in mem)+'\n')
     (out / f'gold{index}.hex').write_text('\n'.join(f'{b:02x}' for b in golden)+'\n')
