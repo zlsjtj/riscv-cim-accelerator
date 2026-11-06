@@ -18,6 +18,8 @@
 |竞业达 K7 V2.1 板级资料|用户提供的原理图、教学 XPR 和 XDC|仅记录已核对的器件和引脚约束，原资料留在本地。[板级说明](BOARD_K7.md)|
 |xPack GNU RISC-V Embedded GCC|15.2.0-1，RV32I/ILP32 编译及 objcopy|本机构建工具，编译和许可信息见 [xPack 发布页](https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/tag/v15.2.0-1)，构建入口使用外部安装。|
 |pyserial|3.5，板测串口采集|PyPI 安装，[BSD-3-Clause](https://pypi.org/project/pyserial/3.5/)，RTL 和 SoC 仿真无需安装。|
+|lowRISC Ibex Simple System|固定 `2373e5dadcfc4f56672962fa242f6a051acc9aca`，RV32IM RTL 整机仿真|[上游源码及许可](https://github.com/lowRISC/ibex/tree/2373e5dadcfc4f56672962fa242f6a051acc9aca)，Ibex 为 Apache-2.0，vendored 组件保留上游许可。构建时下载到 `build/`，提交的小型接入补丁适用所修改文件的上游 Apache-2.0 条款。|
+|Verilator / GNU RISC-V GCC / FuseSoC / Edalize|5.020 / 13.2.0 / 2.4.3 / 0.6.1，开放整机工具链|[Verilator 许可](https://verilator.org/guide/latest/license.html)、[GCC 许可](https://gcc.gnu.org/onlinedocs/libstdc++/manual/license.html)、[FuseSoC](https://github.com/olofk/fusesoc)、[Edalize](https://github.com/olofk/edalize)。按 [整机说明](IBEX.md) 安装，未复制工具二进制。|
 
 模型、官方头文件和下载的参考原文件只保存在 `build/deps/`。测试时从固定
 TensorFlow原文件摘取两个函数编译，小封装不构建整个TensorFlow仓库；生成

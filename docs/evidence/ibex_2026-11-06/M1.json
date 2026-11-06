@@ -1,0 +1,29 @@
+{
+  "ibex_revision": "2373e5dadcfc4f56672962fa242f6a051acc9aca",
+  "M": 1,
+  "cpu_cycles": 9898,
+  "accelerator_cycles": 9033,
+  "starts": 1,
+  "done": 1,
+  "shared_reads": 2448,
+  "shared_writes": 32,
+  "fixture_sha256": {
+    "input": "56f6ced032393d3fa64db86c03689a673dbc798a649105c31a5d8a285837adc8",
+    "layer1_weights": "c04704bebaec0fd25fec612f7b8789147b7ab14a02e50b4d6beacafe32107c5a",
+    "layer2_weights": "d1743ee4e4b4194ff5d9b4a6e8ae283d773dcd2367d28c81d05942ac033a20c8",
+    "layer1_params": "9338fc7c951f0bc52b2064b933165126d532adc8b2ae0bd8fafbe4bc28799a5f",
+    "layer2_params": "5e0efcd5ce6e5e1bfad379c713d2828985c3fb8a2dce02ab621056296ddc89d7",
+    "intermediate_golden": "dd1a88b9b5291d828a281beb6083b6f41ea25acab8603faa20c355e999b1ad45",
+    "final_golden": "69b4e8aefc8c3e61259ee458fa6d75e0b3aca2bc33cd06c8c39c8e7ec05206bd"
+  },
+  "outputs": {
+    "intermediate": {
+      "bytes": 64,
+      "sha256": "4f611c7c27ca2bcf347ed865116f4f1053356bcb6270a662182b6098ddbd38d1"
+    },
+    "final": {
+      "bytes": 64,
+      "sha256": "5163266d20549f8bb9f2d32bf63456c2d552b5dc4bc64128985c854dca4ce4d4"
+    }
+  }
+}

@@ -1,26 +1,30 @@
-# RISC-V CiM INT8 加速器 · K7 50 MHz
+# RISC-V CiM INT8 加速器
 
-可综合 SystemVerilog 实现固定 K=N=64、运行时 M=1..125 的单层 INT8
-pointwise 卷积。RISC-V 固件装入输入、权重、bias、逐通道 multiplier/shift 后，
-一次 START 即由硬件完成全部 tile、两轮低位运算、重建、量化及最终写回。
-这是 RISC-V 控制的 CiM 宏数字代理及数字外围 FPGA 原型。K7 V2.1 50 MHz
-实测覆盖 M=1/125、两种调度和运行中热复位。独立 RTL 回归无需教学 SoC。
-完整 K7 流程需要使用者提供授权取得的 JYDD CPU/UART 源码。
-[v0.1.0 发布说明](docs/RELEASE_v0.1.md)
+可综合 SystemVerilog 实现 K=N=64、运行时 M=1..125 的 INT8
+pointwise 卷积。RISC-V 固件一次提交两层，硬件完成低位宏运算、
+重建、量化及 SRAM 写回。稳定版本为 **v0.3.0**。先在开放 Ibex
+Simple System 上运行真实 RV32IM 固件，再按需要复现 K7 板测。
+[稳定版说明](docs/RELEASE_v0.3.0.md) · [整机架构图](docs/IBEX.md) ·
+[五分钟设计讲解](docs/DESIGN_TALK.md)
 
-本分支提供可选的两层一次提交基准。两层均为 64×64 pointwise，
-链式和两次 START 共用中间 SRAM 地址，在同一 K7 50 MHz 位流上
-对照。[两层实测、RV32IM C 基线与复现](docs/TWO_LAYER.md)
+```bash
+python3 tools/run_ibex.py           # 安装开放依赖后运行 M1
+python3 tools/run_ibex.py --m 125   # 完整双层任务
+```
 
-可选的 `banked-retain` 在第一层写回时同步保留中间激活。M125
-相对链式 SRAM 重读省 2,000 次共享读和 17.62 µs，增加两块
-RAMB36。[同板实测与复现](docs/INTERLAYER_CACHE.md)
+两级 golden 均由独立整数参考生成，输出包含两个 INT8 文件、
+周期与流量 JSON、CPU 执行轨迹。[依赖安装与输出说明](docs/IBEX.md)
 
-K7 构建默认启用请求周转与 8 KiB 双 bank 输入缓存。与 32 位回放相比，
+K7 50 MHz 的双层推荐配置为 `banked-early-write`。M125 在同一
+位流中从 CPU 两次 START 的 943.94 µs 降到 794.60 µs，减少
+15.82%。其中提前写回一步节省 30.02 µs。层间保留比链式 SRAM
+重读减少 2,000 个共享读字。[六条路径、计时窗口与原始证据](docs/TWO_LAYER_COMPARISON.md)
+
+K7 单层构建默认启用请求周转与 8 KiB 双 bank 输入缓存。与 32 位回放相比，
 双 bank 在同一 50 MHz 下将 M125 重叠从 26,719 降至 23,191 拍，
 任务延迟减少 13.20%，缓存仍用两块 RAMB36。[双 bank 实测与逐拍归因](docs/BANKED_REPLAY.md)
 
-独立 RTL 默认使用仅请求周转，回归可显式选择五种配置。
+独立 RTL 默认使用仅请求周转，回归可显式选择对应配置。
 [共享 SRAM 四版对照](docs/SRAM_CACHE_MATRIX.md) 保留双 bank 优化前的
 实测记录，原 [请求周转候选](docs/SRAM_TURNAROUND.md) 和 v0.1.0 结果分别保留。
 
@@ -40,7 +44,7 @@ MODE=0 使用阻塞调度，MODE=1 允许两个块有限重叠。两者使用相
 和存储端口。这里的宏是独立实现的数字代理，包含真实低位计算及4096bit
 权重；不代表真实模拟宏、工艺面积或能效。
 
-## 50 MHz 实测
+## 单层历史实测
 
 2026-11-06 的四版使用同一 RV32IM 固件、输入、CPU 和 50 MHz 约束。
 以下为双 bank 优化前的实板周期，四版均通过两次热复位及逐字节比较。
@@ -131,6 +135,8 @@ python tools/synth.py --generic
 
 - [板级构建与演示](docs/BOARD_K7.md) 包含 JYDD 依赖清单、固件与 SoC 入口、
   JTAG/UART 演示和旧基线恢复方法。
+- [K7 双层构建](docs/INTERLAYER_WRITEBACK.md#复现) 使用
+  `--two-layer --variant banked-early-write`，由有权使用者提供 JYDD 源码。
 - [设计讲解](docs/DESIGN_WALKTHROUGH.md) 包含低位重建、容量预约、写回生命周期、
   双舍入和两种模式的量化流水周期分析。
 - [v0.1 发布说明](docs/RELEASE_v0.1.md) 包含源码/位流对应、干净目录复现、
@@ -146,6 +152,7 @@ python tools/synth.py --generic
 |`tb/tb_accel.sv`|最终INT8逐元素比较及合法等待、状态寿命检查|
 |`tb/tb_units.sv`|宏时序、符号边界与量化内部舍入检查|
 |`tools/reference.py`|独立直接MAC与数据布局生成|
+|`tools/run_ibex.py`|Ibex 真实 CPU 整机复现|
 |`tools/check_reference.py`|Python与锁定官方C++整数运算交叉核对|
 |`tools/prepare_input.py`、`tools/export_activations.py`|固定真实模型输入、来源记录、实际中间张量导出及主机比较|
 |`sw/cim.h`, `sw/cim.c`, `sw/example.c`|寄存器、参数校验、打包及裸机调用|

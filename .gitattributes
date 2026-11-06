@@ -1,2 +1,4 @@
 # Use LF for stable hashes of the public text evidence.
 docs/evidence/* text eol=lf
+# Linux/WSL applies this patch to the pinned upstream's LF sources.
+sim/ibex/*.patch text eol=lf
