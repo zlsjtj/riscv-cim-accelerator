@@ -58,23 +58,41 @@ def summarize_second_tile0(path):
             if event in ("done", "abort"):
                 record = second.pop(task, None)
                 if event == "done" and record:
+                    record["tail_cycles"] = record.pop("run_end") - record.pop("last_macro")
                     yield record
                 last_tile.pop(task, None)
                 continue
             if last_tile.get(task) == 7 and tile == 0:
                 second[task] = dict(task=task, M=int(row["M"]), layer2_start=cycle, run_start=0,
-                                    run_cycles=0, input_wait=0, first_macro_offset=-1)
+                                    run_cycles=0, input_wait=0, first_macro_offset=-1,
+                                    input_wait_replay=0, input_wait_no_replay=0,
+                                    backend_cycles=0, backend_both_live=0,
+                                    last_quant_result=0, last_write_commit=0,
+                                    run_end=0, last_macro=0)
             last_tile[task] = tile
             if task in second and tile == 0 and state == 3:
                 record = second[task]
                 if not record["run_cycles"]:
                     record["run_start"] = cycle
                 record["run_cycles"] += 1
-                macro_start = int(row["macro_start"])
-                if macro_start and record["first_macro_offset"] == -1:
+                record["run_end"] = cycle
+                macro = row["macro_start"] == "1" or row["macro_busy"] == "1"
+                if row["macro_start"] == "1" and record["first_macro_offset"] == -1:
                     record["first_macro_offset"] = cycle - record["run_start"]
-                if int(row["input_wait"]) and not (macro_start or int(row["macro_busy"]) or int(row["raw_full"])):
-                    record["input_wait"] += 1
+                if row["quant_result"] == "1":
+                    record["last_quant_result"] = cycle - record["run_start"]
+                if row["write_commit"] == "1":
+                    record["last_write_commit"] = cycle - record["run_start"]
+                if macro:
+                    record["last_macro"] = cycle
+                elif row["raw_full"] != "1":
+                    if row["input_wait"] == "1":
+                        record["input_wait"] += 1
+                        key = "input_wait_replay" if row["replay"] == "1" else "input_wait_no_replay"
+                        record[key] += 1
+                    else:
+                        record["backend_cycles"] += 1
+                        record["backend_both_live"] += int(row["contexts_full"])
 
 
 def main():

@@ -17,12 +17,13 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
     );
 
     logic counter_test;
-    logic chain_test, chain_control_test, retain_test;
+    logic chain_test, chain_control_test, retain_test, prefetch_test;
     int chain_windows = 0, chain_starts, chain_dones, chain_mid_writes, chain_final_writes;
     int chain_core_cycles, chain_mid_reads, chain_shared_reads, chain_copies;
+    int chain_prefetches;
     logic [2047:0] chain_copied;
     logic chain_final_read;
-    wire [31:0] chain_methods = retain_test ? 4 : 3;
+    wire [31:0] chain_methods = prefetch_test ? 5 : retain_test ? 4 : 3;
     wire [31:0] chain_words = chain_windows < chain_methods ? 32'd16 : 32'd2000;
     wire [31:0] chain_method = chain_windows % chain_methods;
     wire [31:0] chain_expected_starts = chain_method == 0 ? 2 : chain_method == 2 ? 0 : 1;
@@ -71,11 +72,14 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
     endtask
 
     task test_chain_control;
+        logic reserved_ctx;
+        logic [7:0] old_position, next_position;
         force dut.cpu_addr=test_addr;
         force dut.cpu_wdata=test_data;
         force dut.cpu_mask=2'b10;
         force dut.cpu_wen=test_wen;
-        write_test_cfg('h08,1);
+        write_test_cfg('h08,prefetch_test ? 3 : 1);
+        write_test_cfg('h1c,1);
         write_test_cfg('h0c,'h80101000);
         write_test_cfg('h10,'h80103000);
         write_test_cfg('h14,'h80105000);
@@ -89,7 +93,11 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
         write_test_cfg('h2c,'h80104000);
         write_test_cfg('h00,9);
         if (dut.accel.busy || !dut.accel.error) $fatal(1,"RETAIN without CHAIN was accepted");
-        write_test_cfg('h00,retain_test ? 13 : 5);
+        if (prefetch_test) begin
+            write_test_cfg('h00,21);
+            if (dut.accel.busy || !dut.accel.error) $fatal(1,"PREFETCH without RETAIN was accepted");
+        end
+        write_test_cfg('h00,prefetch_test ? 29 : retain_test ? 13 : 5);
         if (!dut.accel.busy || dut.accel.error) $fatal(1,"Legal chain START failed");
         write_test_cfg('h2c,'h80104004);
         write_test_cfg('h30,'h80105404);
@@ -108,17 +116,34 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
         end
         wait(dut.accel.a_base == 'h80106000);
         if (dut.accel.w_base != 'h80104000 || dut.accel.p_base != 'h80105400 ||
-            dut.accel.y_base != 'h80108000 || dut.committed_writes != 16 ||
+            dut.accel.y_base != 'h80108000 || dut.committed_writes != (prefetch_test ? 48 : 16) ||
             !dut.accel.busy || dut.accel.done)
             $fatal(1,"Chain handoff consumed shadow configuration or exposed early DONE");
-        if (retain_test) wait(dut.accel.spad_rvalid && dut.accel.replay_intermediate);
+        if (prefetch_test) begin
+            wait(dut.accel.spad_rvalid && dut.accel.prefetch_pending);
+            reserved_ctx=dut.accel.prefetch_ctx;
+            old_position=dut.accel.position[reserved_ctx];
+            next_position=dut.accel.next_p;
+            @(negedge clk);
+            force dut.mem_ready=0;
+            repeat (12) begin
+                @(posedge clk);
+                if (!dut.accel.prefetch_pending || !dut.accel.live[reserved_ctx] ||
+                    dut.accel.next_p != next_position || dut.accel.position[reserved_ctx] != old_position)
+                    $fatal(1,"Prefetch replaced the old output context under SRAM backpressure");
+            end
+            if (dut.accel.spad_active || dut.accel.spad_rvalid || !dut.mem_valid || !dut.mem_write)
+                $fatal(1,"Expected completed prefetch while old output is stalled");
+        end else if (retain_test) wait(dut.accel.spad_rvalid && dut.accel.replay_intermediate);
         else wait(dut.mem_rvalid && dut.accel.rd_pending);
         @(negedge clk);
         rst_n = 0;
+        if (prefetch_test) release dut.mem_ready;
         @(negedge clk);
         if (dut.accel.busy || dut.accel.done || dut.accel.error ||
             dut.accel.chain_pending || dut.accel.rd_pending || dut.mem_valid || dut.mem_rvalid ||
-            dut.accel.retain_intermediate || dut.accel.spad_rvalid || dut.committed_writes)
+            dut.accel.retain_intermediate || dut.accel.spad_rvalid ||
+            dut.accel.prefetch_pending || dut.committed_writes)
             $fatal(1,"Chain survived reset in layer two");
         $display("PASS chain control alignment, shadow snapshot, commit and reset");
         $finish;
@@ -167,9 +192,8 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
         else if (dut.accel.done && !trace_done)
             trace_event("done_seen", -1, -1);
         else if (dut.run_n && dut.accel.state == dut.accel.RUN) begin
-            if (dut.accel.next_p < dut.accel.task_m &&
-                (dut.accel.live == 0 || (dut.accel.mode && dut.accel.live != 2'b11)))
-                trace_event("allocate", dut.accel.next_p, dut.accel.live[0]);
+            if (dut.accel.allocate_row)
+                trace_event("allocate", dut.accel.next_p, dut.accel.allocate_ctx);
             if (trace_ch7)
                 trace_event("after_issue_ch7", dut.accel.position[trace_ctx], trace_ctx);
             if (dut.accel.q_valid && dut.accel.quant_index[dut.accel.q_ctx] == 7) begin
@@ -196,6 +220,14 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
                           dut.accel.task_m, dut.accel.cycles, shared_reads, shared_writes, local_reads, local_writes);
         end
         if (chain_test && dut.sw_active) begin
+            if (dut.accel.prefetch_start) chain_prefetches++;
+            if (dut.accel.prefetch_pending && dut.accel.spad_rvalid &&
+                (chain_method != 4 || dut.accel.spad_result_ctx != dut.accel.prefetch_ctx ||
+                 (dut.accel.mac_busy && dut.accel.plane_ctx == dut.accel.prefetch_ctx)))
+                $fatal(1, "Prefetched data overwrote an input slot still in use");
+            if (dut.accel.prefetch_pending && dut.accel.allocate_row &&
+                (dut.accel.live[dut.accel.allocate_ctx] || dut.accel.spad_active || dut.accel.spad_rvalid))
+                $fatal(1, "Prefetched row activated before the previous output or replay drained");
             if (dut.start_accepted) chain_starts++;
             if (dut.accel.done && !was_done) begin
                 chain_dones++;
@@ -209,7 +241,7 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
                 end
             end
             if (dut.accel.retain_write) begin
-                if (chain_method != 3 || !dut.cim_access || !dut.mem_write ||
+                if (chain_method < 3 || !dut.cim_access || !dut.mem_write ||
                     int'(dut.accel.retain_addr) != int'(dut.b_word)-32'h1800 ||
                     dut.accel.retain_addr >= chain_words || chain_copied[dut.accel.retain_addr])
                     $fatal(1, "Wrong retained address or duplicate SRAM commit");
@@ -245,18 +277,19 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
             if (chain_test && dut.cpu_wdata[0]) begin
                 chain_starts=0; chain_dones=0; chain_core_cycles=0;
                 chain_mid_writes=0; chain_final_writes=0; chain_final_read=0;
-                chain_mid_reads=0; chain_shared_reads=0; chain_copies=0; chain_copied='0;
+                chain_mid_reads=0; chain_shared_reads=0; chain_copies=0; chain_copied='0; chain_prefetches=0;
             end else if (chain_test) begin
                 if (!dut.sw_active || chain_mid_writes != chain_words || chain_final_writes != chain_words ||
                     chain_starts != chain_expected_starts || chain_dones != chain_starts || !chain_final_read ||
                     chain_mid_reads != (chain_method < 2 ? chain_words : 0) ||
-                    chain_copies != (chain_method == 3 ? chain_words : 0) ||
+                    chain_copies != (chain_method >= 3 ? chain_words : 0) ||
+                    ((chain_prefetches != 0) != (chain_method == 4 && chain_words > 16)) ||
                     chain_shared_reads != (chain_method == 2 ? 0 : 2432 + chain_words + chain_mid_reads))
                     $fatal(1, "Incomplete chain timer window method=%0d starts=%0d done=%0d mid=%0d final=%0d read=%0d",
                            chain_method, chain_starts, chain_dones, chain_mid_writes, chain_final_writes, chain_final_read);
-                $display("CHAIN_WINDOW method=%0d starts=%0d done=%0d mid_words=%0d final_words=%0d core_cycles=%0d shared_reads=%0d mid_reads=%0d retained_words=%0d",
+                $display("CHAIN_WINDOW method=%0d starts=%0d done=%0d mid_words=%0d final_words=%0d core_cycles=%0d shared_reads=%0d mid_reads=%0d retained_words=%0d prefetches=%0d",
                          chain_method, chain_starts, chain_dones, chain_mid_writes, chain_final_writes, chain_core_cycles,
-                         chain_shared_reads, chain_mid_reads, chain_copies);
+                         chain_shared_reads, chain_mid_reads, chain_copies, chain_prefetches);
                 chain_windows++;
             end else if (dut.cpu_wdata[0]) begin
                 software_output_words=0;
@@ -307,6 +340,7 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
         chain_test = $test$plusargs("TEST_CHAIN");
         chain_control_test = $test$plusargs("TEST_CHAIN_CONTROL");
         retain_test = $test$plusargs("TEST_RETAIN");
+        prefetch_test = $test$plusargs("TEST_PREFETCH");
         if (!counter_test && !chain_control_test) begin
             traffic_file = $fopen("traffic.csv", "w");
             if (!traffic_file) $fatal(1, "Cannot open traffic.csv");

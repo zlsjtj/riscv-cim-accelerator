@@ -107,7 +107,10 @@ static int run_pair(const cim_device *dev, uint32_t m, unsigned kind) {
         write_word(CHAIN_SCRATCH + offset, offset);
 #ifdef CIM_RETAIN_BENCHMARK
     // Choose the option before timing. Both chained paths share one call site.
-    uint32_t options = kind == 3 ? CIM_RETAIN : 0;
+    uint32_t options = kind >= 3 ? CIM_RETAIN : 0;
+#ifdef CIM_PREFETCH_BENCHMARK
+    if (kind == 4) options |= CIM_PREFETCH;
+#endif
     __asm__ volatile ("" : "+r"(options) :: "memory");
 #endif
     visibility(0);
@@ -116,7 +119,7 @@ static int run_pair(const cim_device *dev, uint32_t m, unsigned kind) {
     if (kind == 2) {
         compute_layer(&first);
         compute_layer(&second);
-    } else if (kind & 1u) {
+    } else if (kind != 0) {
 #ifdef CIM_RETAIN_BENCHMARK
         status = cim_submit_pair_with_options(dev, &first, &second, options);
 #else
@@ -149,7 +152,9 @@ static int run_pair(const cim_device *dev, uint32_t m, unsigned kind) {
 int main(void) {
     static const cim_device dev = {0, cfg_read, cfg_write, visibility, visibility};
     print("CIM_BOOT RV32IM two-layer tensor23\n");
-#ifdef CIM_RETAIN_BENCHMARK
+#ifdef CIM_PREFETCH_BENCHMARK
+    const unsigned methods = 5;
+#elif defined(CIM_RETAIN_BENCHMARK)
     const unsigned methods = 4;
 #else
     const unsigned methods = 3;

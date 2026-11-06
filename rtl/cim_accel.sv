@@ -2,7 +2,7 @@
 // Original portable digital peripheral. Local reads return >=1 clock after acceptance.
 module cim_accel #(
  parameter bit TURNAROUND=1,
- parameter int INPUT_CACHE=0 // 0: bypass, 1: word replay, 2: paired replay, 3: retain layer output
+ parameter int INPUT_CACHE=0 // 0: bypass, 1: word replay, 2: paired, 3: retain, 4: prefetch
 ) (
  input logic clk, rst_n,
  input logic cfg_valid, cfg_write,
@@ -20,14 +20,16 @@ module cim_accel #(
  localparam IDLE=0, PARAM=1, WEIGHT=2, RUN=3;
  localparam RD_PARAM=0, RD_WEIGHT=1, RD_INPUT=2;
  localparam BANKED_REPLAY=INPUT_CACHE>=2;
- localparam INTERLAYER_CACHE=INPUT_CACHE==3;
+ localparam INTERLAYER_CACHE=INPUT_CACHE>=3;
+ localparam PREFETCH_REPLAY=INPUT_CACHE==4;
  localparam [3:0] REPLAY_LAST=BANKED_REPLAY ? 4'd14 : 4'd15;
  logic [1:0] state;
  logic busy, done, error;
  logic [31:0] shadow_m, shadow_a, shadow_w, shadow_p, shadow_y, shadow_mode;
  logic [31:0] a_base,w_base,p_base,y_base;
  logic [31:0] shadow_w2,shadow_p2,shadow_y2,w2_base,p2_base,y2_base;
- logic chain_pending, retain_intermediate;
+ logic chain_pending, retain_intermediate, prefetch_enabled;
+ logic prefetch_pending, prefetch_ctx;
  logic [7:0] task_m, next_p;
  logic mode;
  logic [2:0] tile;
@@ -80,7 +82,8 @@ module cim_accel #(
                          cfg_wdata[0] && !busy && shadow_m>=1 && shadow_m<=125 &&
                          shadow_mode<=1 && ((shadow_a|shadow_w|shadow_p|shadow_y)&32'h3)==0 &&
                          (!cfg_wdata[2] || ((shadow_w2|shadow_p2|shadow_y2)&32'h3)==0) &&
-                         (!cfg_wdata[3] || (INTERLAYER_CACHE && cfg_wdata[2]));
+                         (!cfg_wdata[3] || (INTERLAYER_CACHE && cfg_wdata[2])) &&
+                         (!cfg_wdata[4] || (PREFETCH_REPLAY && cfg_wdata[3]));
 
  // A returning input word releases the single read credit on this edge.
  // Only offer the next word of the same context, with ready writes taking
@@ -96,8 +99,20 @@ module cim_accel #(
  wire [10:0] retain_addr = {position[req_ctx][6:0], tile, req_last};
  wire spad_write = INPUT_CACHE && rst_n && external_input && tile==0;
  wire spad_read = INPUT_CACHE && rst_n && spad_active;
+ // The old row still owns its output context. Its input slot becomes free
+ // after the last high-slice plane, even when SRAM writeback is stalled.
+ wire prefetch_slot0 = issued_high[0] && !(mac_busy && !plane_ctx);
+ wire prefetch_slot1 = issued_high[1] && !(mac_busy && plane_ctx);
+ wire prefetch_start = PREFETCH_REPLAY && prefetch_enabled && replay_intermediate &&
+                       state==RUN && mode && live==2'b11 && input_ready==2'b11 &&
+                       next_p<task_m && !prefetch_pending && !spad_active && !spad_rvalid &&
+                       (prefetch_slot0 || prefetch_slot1);
+ wire allocate_ctx = prefetch_pending ? prefetch_ctx : live[0];
+ wire allocate_row = prefetch_pending ? (!live[prefetch_ctx] && !spad_active && !spad_rvalid) :
+                     (next_p<task_m && ((!mode && live==0) || (mode && live!=2'b11)));
+ wire [6:0] replay_row = prefetch_pending ? next_p[6:0] : position[spad_ctx][6:0];
  wire [10:0] spad_addr = spad_write ? {position[rd_ctx][6:0], rd_index[3:0]} :
-                                      {position[spad_ctx][6:0], spad_index};
+                                      {replay_row, spad_index};
  wire input_pair = BANKED_REPLAY && spad_rvalid;
  wire input_ctx = spad_rvalid ? spad_result_ctx : rd_ctx;
  wire [3:0] input_index = spad_rvalid ? spad_result_index : rd_index[3:0];
@@ -164,7 +179,9 @@ module cim_accel #(
      spad_result_index<=spad_index;
      spad_index<=spad_index+(BANKED_REPLAY ? 4'd2 : 4'd1);
      if(spad_index==REPLAY_LAST) spad_active<=0;
-    end else if(state==RUN && (tile!=0 || replay_intermediate)) begin
+    end else if(prefetch_start) begin
+     spad_active<=1;spad_ctx<=!prefetch_slot0;spad_index<=0;
+    end else if(!prefetch_pending && state==RUN && (tile!=0 || replay_intermediate)) begin
      // Exclude the context of the last word still in the return stage.
      if(live[0] && !input_ready[0] && !(spad_rvalid && !spad_result_ctx)) begin
       spad_active<=1;spad_ctx<=0;spad_index<=0;
@@ -227,6 +244,7 @@ module cim_accel #(
    shadow_m<=1;shadow_a<=0;shadow_w<=0;shadow_p<=0;shadow_y<=0;shadow_mode<=0;
    shadow_w2<=0;shadow_p2<=0;shadow_y2<=0;w2_base<=0;p2_base<=0;y2_base<=0;
    chain_pending<=0;retain_intermediate<=0;
+   prefetch_enabled<=0;prefetch_pending<=0;prefetch_ctx<=0;
    a_base<=0;w_base<=0;p_base<=0;y_base<=0;task_m<=0;mode<=0;tile<=0;next_p<=0;
    cycles<=0;mem_wait<=0;macro_cycles<=0;
    request_valid<=0;mem_write<=0;request_addr<=0;mem_wdata<=0;mem_wstrb<=0;
@@ -272,6 +290,7 @@ module cim_accel #(
         p_base<=shadow_p;y_base<=shadow_y;mode<=shadow_mode[0];
         chain_pending<=cfg_wdata[2];
         retain_intermediate<=cfg_wdata[3];
+        prefetch_enabled<=cfg_wdata[4];prefetch_pending<=0;
         w2_base<=shadow_w2;p2_base<=shadow_p2;y2_base<=shadow_y2;
         tile<=0;next_p<=0;load_word<=0;cycles<=0;mem_wait<=0;macro_cycles<=0;
         live<=0;input_ready<=0;issued_low<=0;issued_high<=0;recon_done<=0;output_ready<=0;
@@ -343,8 +362,10 @@ module cim_accel #(
      input_low[input_ctx][(paired_index*4+k)*4 +:4]<=input_data_hi[k*8 +:4];
      input_high[input_ctx][(paired_index*4+k)*4 +:4]<={~input_data_hi[7+k*8],input_data_hi[4+k*8 +:3]};
     end
-    fill_word[input_ctx]<=fill_word[input_ctx]+(input_pair ? 5'd2 : 5'd1);
-    if(input_index==(input_pair ? 4'd14 : 4'd15)) input_ready[input_ctx]<=1;
+    if(!prefetch_pending) begin
+     fill_word[input_ctx]<=fill_word[input_ctx]+(input_pair ? 5'd2 : 5'd1);
+     if(input_index==(input_pair ? 4'd14 : 4'd15)) input_ready[input_ctx]<=1;
+    end
    end
 
    // One shared 32-bit port; at most one outstanding read and a reserved destination.
@@ -384,16 +405,17 @@ module cim_accel #(
 
    if(state==RUN) begin
     // MODE=0 admits only one context. MODE=1 uses exactly the same arithmetic.
-    if(next_p<task_m && ((!mode && live==0) || (mode && live!=2'b11))) begin
-     if(!live[0]) begin
-      live[0]<=1;position[0]<=next_p;fill_word[0]<=0;input_ready[0]<=0;
-      issued_low[0]<=0;issued_high[0]<=0;recon_done[0]<=0;output_ready[0]<=0;
-      quant_index[0]<=0;write_index[0]<=0;
-     end else begin
-      live[1]<=1;position[1]<=next_p;fill_word[1]<=0;input_ready[1]<=0;
-      issued_low[1]<=0;issued_high[1]<=0;recon_done[1]<=0;output_ready[1]<=0;
-      quant_index[1]<=0;write_index[1]<=0;
-     end
+    if(prefetch_start) begin
+     prefetch_pending<=1;prefetch_ctx<=!prefetch_slot0;
+    end
+    if(allocate_row) begin
+     live[allocate_ctx]<=1;position[allocate_ctx]<=next_p;
+     fill_word[allocate_ctx]<=prefetch_pending ? 5'd16 : 5'd0;
+     input_ready[allocate_ctx]<=prefetch_pending;
+     issued_low[allocate_ctx]<=0;issued_high[allocate_ctx]<=0;
+     recon_done[allocate_ctx]<=0;output_ready[allocate_ctx]<=0;
+     quant_index[allocate_ctx]<=0;write_index[allocate_ctx]<=0;
+     prefetch_pending<=0;
      next_p<=next_p+1;
     end
     if(mac_start) begin
@@ -427,7 +449,7 @@ module cim_accel #(
     end
     if(next_p==task_m && live==0 && raw_valid==0 && raw_reserved==0 &&
        !mac_busy && !mac_valid && !mem_valid && !rd_pending && !q_result_valid &&
-       !spad_active && !spad_rvalid) begin
+       !spad_active && !spad_rvalid && !prefetch_pending) begin
      if(tile!=7) begin tile<=tile+1;load_word<=0;state<=PARAM;next_p<=0;end
      else if(chain_pending) begin
       // Every intermediate write has committed. Tile zero either reads
