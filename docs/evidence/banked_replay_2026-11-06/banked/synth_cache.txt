@@ -1,0 +1,2 @@
+|cim_accel__GB5     | cache.paired.lane[0].input_spad_reg | 1 K x 32(READ_FIRST)   | W |   | 1 K x 32(WRITE_FIRST)  |   | R | Port A and B     | 0      | 1      |
+|cim_accel__GB5     | cache.paired.lane[1].input_spad_reg | 1 K x 32(READ_FIRST)   | W |   | 1 K x 32(WRITE_FIRST)  |   | R | Port A and B     | 0      | 1      |

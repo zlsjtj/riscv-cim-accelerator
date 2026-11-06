@@ -8,4 +8,4 @@ MATRIX_VARIANTS = {
 }
 VARIANTS = {**MATRIX_VARIANTS, "banked": (1, 2, "43494d44")}
 DEFAULT_VARIANT = "turnaround"
-DEFAULT_K7_VARIANT = "combined"
+DEFAULT_K7_VARIANT = "banked"

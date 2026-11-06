@@ -8,10 +8,13 @@ pointwise 卷积。RISC-V 固件装入输入、权重、bias、逐通道 multipl
 完整 K7 流程需要使用者提供授权取得的 JYDD CPU/UART 源码。
 [v0.1.0 发布说明](docs/RELEASE_v0.1.md)
 
-本分支完成 [共享 SRAM 四版对照](docs/SRAM_CACHE_MATRIX.md)。K7 构建默认
-启用请求周转与 8 KiB 输入缓存。独立 RTL 默认使用仅请求周转，回归可
-显式选择四种配置。原 [请求周转候选](docs/SRAM_TURNAROUND.md) 和 v0.1.0
-结果分别保留。
+K7 构建默认启用请求周转与 8 KiB 双 bank 输入缓存。与 32 位回放相比，
+双 bank 在同一 50 MHz 下将 M125 重叠从 26,719 降至 23,191 拍，
+任务延迟减少 13.20%，缓存仍用两块 RAMB36。[双 bank 实测与逐拍归因](docs/BANKED_REPLAY.md)
+
+独立 RTL 默认使用仅请求周转，回归可显式选择五种配置。
+[共享 SRAM 四版对照](docs/SRAM_CACHE_MATRIX.md) 保留双 bank 优化前的
+实测记录，原 [请求周转候选](docs/SRAM_TURNAROUND.md) 和 v0.1.0 结果分别保留。
 
 ```
 运行时共享SRAM ──32bit请求/响应── 权重/参数加载与双输入槽
@@ -32,14 +35,14 @@ MODE=0 使用阻塞调度，MODE=1 允许两个块有限重叠。两者使用相
 ## 50 MHz 实测
 
 2026-11-06 的四版使用同一 RV32IM 固件、输入、CPU 和 50 MHz 约束。
-以下为实板周期，四版均通过两次热复位及逐字节比较。
+以下为双 bank 优化前的实板周期，四版均通过两次热复位及逐字节比较。
 
 |构建|M1 两种模式各自|M125 阻塞|M125 重叠|RAMB36|
 |---|---:|---:|---:|---:|
 |baseline|4,763|78,171|56,347|16|
 |turnaround|4,523|48,171|29,323|16|
 |cache|4,553|51,921|30,097|18|
-|combined（K7 默认）|4,523|48,171|26,719|18|
+|combined（32 位回放）|4,523|48,171|26,719|18|
 
 组合相对仅周转的 M125 重叠延迟少 8.88%，由 586.46 µs 降至 534.38 µs。
 两个额外 RAMB36 使 M125 共享 SRAM 读从 17,216 降到 3,216 次，
@@ -71,7 +74,7 @@ Linux / WSL 的公开回归使用 Python 3、G++ 和 Icarus Verilog（Ubuntu 24.
 ```bash
 python3 tools/run.py --dataset synthetic --simulator iverilog
 # CI 同样覆盖最快连续接受路径
-python3 tools/run.py --dataset matrix --simulator iverilog --memory fixed --variant combined
+python3 tools/run.py --dataset matrix --simulator iverilog --memory fixed --variant banked
 ```
 
 Windows 可使用 Python 3.12.0、G++ 9.3.0 和 Questa 2024.1。

@@ -1,0 +1,34 @@
+[
+  {
+    "mode": 0,
+    "M": 125,
+    "cycles": 41171,
+    "outputs": 8000,
+    "mismatches": 0,
+    "committed_words": 2000
+  },
+  {
+    "mode": 0,
+    "M": 1,
+    "cycles": 4467,
+    "outputs": 64,
+    "mismatches": 0,
+    "committed_words": 16
+  },
+  {
+    "mode": 1,
+    "M": 125,
+    "cycles": 23191,
+    "outputs": 8000,
+    "mismatches": 0,
+    "committed_words": 2000
+  },
+  {
+    "mode": 1,
+    "M": 1,
+    "cycles": 4467,
+    "outputs": 64,
+    "mismatches": 0,
+    "committed_words": 16
+  }
+]

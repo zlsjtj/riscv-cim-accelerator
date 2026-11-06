@@ -60,9 +60,9 @@ golden 填充输出区，再在检测到 BUSY 和已有写提交后请求复位�
 从项目根目录执行。公开源码提供板级适配和构建入口，整板需要自行提供
 获授权的外部 JYDD CPU/UART。先按 [README](../README.md) 导出 tensor23，准备
 xPack GCC 15.2.0、Questa 2024.1 和 Vivado 2023.2。当前分支默认构建
-`combined`，输出到 `build/k7_matrix_combined/`。其他构建使用
-`--variant baseline|turnaround|cache`，也可用 `--out` 指定目录。准备、仿真、
-实现和加载须使用同一配置和目录。四版实验见 [架构对照](SRAM_CACHE_MATRIX.md)。
+`banked`，输出到 `build/k7_matrix_banked/`。使用 `--variant combined`
+构建 32 位回放，也可用 `--out` 指定目录。准备、仿真、实现和加载须
+使用同一配置和目录。[双 bank 与 32 位回放对照](BANKED_REPLAY.md)
 
 ```powershell
 $cpuSrc = '<经授权的 JYDD 工程 source 目录>'
@@ -91,7 +91,7 @@ python tools/k7.py program --jtag $jtagSerial --port $serialPort
 ```
 
 脚本核对 FPGA 型号、位流摘要、JTAG DONE 和配置对应的 USR_ACCESS。
-默认配置的标识为 `43494d43`。UART 115200 8N1 输出两条 `CIM_RESET`、
+默认配置的标识为 `43494d44`。UART 115200 8N1 输出两条 `CIM_RESET`、
 四条 `CIM_RESULT`、两条 RV32IM `CPU_RESULT` 和 `CIM_PASS`。
 固件的启动串保留原先 scratchpad 实验的文字，配置以 JTAG 读回的
 USR_ACCESS 为准。可用 M1 的 64 字节核对展示运行时配置生效。

@@ -1,5 +1,8 @@
 # 共享 SRAM 请求周转与输入缓存
 
+本文的默认配置决策对应四版对照提交 `97bf98c`。
+后续 K7 默认选择见 [双 bank 回放](BANKED_REPLAY.md)。
+
 四版从公开请求周转分支 `76194e4` 派生，共用 `0adaca2` 的宏、量化器、
 SoC、RV32IM 固件、tensor23 和 50 MHz XDC。旧版
 [`v0.1.0`](RELEASE_v0.1.md) 及 [请求周转原始对照](SRAM_TURNAROUND.md)

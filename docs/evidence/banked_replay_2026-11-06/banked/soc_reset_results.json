@@ -1,0 +1,24 @@
+[
+  {
+    "mode": 0,
+    "status_before": 1,
+    "read_response_at_reset": 1,
+    "committed_before": 2,
+    "status_after": 0,
+    "cycles_after": 0,
+    "committed_after": 0,
+    "retained_words": 2,
+    "invalid_words": 0
+  },
+  {
+    "mode": 1,
+    "status_before": 1,
+    "read_response_at_reset": 1,
+    "committed_before": 2,
+    "status_after": 0,
+    "cycles_after": 0,
+    "committed_after": 0,
+    "retained_words": 2,
+    "invalid_words": 0
+  }
+]

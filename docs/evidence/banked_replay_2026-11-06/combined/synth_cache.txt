@@ -1,0 +1,1 @@
+|cim_k7_top  | cache.single_word.input_spad_reg | 2 K x 32(READ_FIRST)   | W |   | 2 K x 32(WRITE_FIRST)  |   | R | Port A and B     | 0      | 2      |

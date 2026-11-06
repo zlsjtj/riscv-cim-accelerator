@@ -1,0 +1,14 @@
+[
+  {
+    "M": 1,
+    "cycles": 23010,
+    "outputs": 64,
+    "mismatches": 0
+  },
+  {
+    "M": 125,
+    "cycles": 2749530,
+    "outputs": 8000,
+    "mismatches": 0
+  }
+]
