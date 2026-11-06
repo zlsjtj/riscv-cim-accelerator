@@ -1,0 +1,3 @@
+path,run_cycles,other,input_wait,macro_start,macro_busy,oldest_write_enqueue,oldest_write_first,oldest_write_last,allocate,oldest_quant_issue,oldest_quant_result,oldest_quant_last,macro_result_wait,reconstruct,tile_drain,backend_live0,backend_live1,backend_live2,backend_any_quant_issue,backend_any_quant_result,shared_stall,actual_first_commits,actual_last_commits,same_edge_handoffs
+prefetch,1649,389,10,250,1000,126,63,63,124,1,7,2,1,1,1,2,138,249,195,134,0,125,125,0
+early_write,1461,201,10,250,1000,64,1,2,124,1,5,2,0,1,1,2,13,186,9,9,0,125,125,122

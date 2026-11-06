@@ -1,0 +1,49 @@
+{
+  "source_commit": "777c941",
+  "baseline_branch_commit": "4665433",
+  "vivado": "2023.2",
+  "questa": "2024.1",
+  "gcc": "xPack 15.2.0",
+  "cpu_sources": {
+    "common/RF.sv": "42ffda2ad9168cfc9803d87ef4df7cc7dfb212b1f33d18c3cf3074a9497eb4f6",
+    "common/Control.sv": "fbc90c20ed4613a64a1eb492214566b475ab40ed9e16651768897206ab5ec59e",
+    "common/IMMGEN.sv": "e73be0f5f75d1d057ef819625d6c34b3e73d21eded269c9463afe7938bac14f5",
+    "common/CCTL.sv": "32e15e41e8a0b74431b43c4b7c194f63e957b1e179fc3a47e5f65081d29e940d",
+    "common/ALU.sv": "bb7e2e64ad75e352c01f79c2b0203015624c87de4d0d7f8a5bf87adc83c36abf",
+    "common/ACTL.sv": "d570cefa7815fe3c8f980e9bcfc2ad967d9277158dcc6c76eef2afa6bc458e96",
+    "common/CSR.sv": "a1efe6c55ca2815a9437b9e7ae2dd9efffd274ed11203ae46878eb0834e1391f",
+    "route_src/myCPU.sv": "11ab47adf8f53ea8e06696aeaedf7c20ded74df2ecebb2b7cbdf4a12a5b2a4bc",
+    "route_src/uart.sv": "50eb7bea5a678f855132fe01e50507efac0ecea2964f6c31153666d281097fd1",
+    "common/defines.sv": "f5b990d5ae57c77a6db52cb68793c6987a33a98d6a9ebb1a52442b1e7f49ca2b",
+    "common/myCPU_units.sv": "74d32b029087e08b2c6b1a7979616342c31a2080315f60c3ee4577341bf7b0b0",
+    "common/myCPU_m_ext.sv": "5598f5d1e86aca18438a4cb87997b97bbbcf73bf9c5f14ece732186fddc7842e",
+    "common/myCPU_bitmanip.sv": "0583eb0e6595ea72c22b7811633d08a3ddb49a64164c207e3b3961060c111047"
+  },
+  "prepared_files": {
+    "firmware.mem": "4343c43a6e4e0bd333ac4f9e6b6fd8e6d30e5f0a855276e0d673ff2c6e88fdf1",
+    "sram.mem": "5f35ab51cc2eb41b6565dca7daceeedb6ee2fa63da987ff6f8f7805bad3873df",
+    "cpu_include/myCPU_m_ext.sv": "ef162478fa0ec5b84a65eb5a2bf82f497312fd5216a9f31a92d6774511169aa6"
+  },
+  "firmware_elf_sha256": "52f4e53029cef663aed56f94b46d4682a6407927952ac8a0e5a348545cc38113",
+  "text_bytes": 4168,
+  "fixture_case": 6,
+  "activation_sha256": "9b3d9d6ba64079304f99477cd6689a44018e7ab6987d7611d8bfc0ec3be5d81d",
+  "golden_sha256": "877299da8c940c038a02e2b5adee0f47dbce2f419697648394dcb2f0317ddb8f",
+  "chain": {
+    "layer2_seed": 3248489060,
+    "intermediate_address": "0x80106000",
+    "final_address": "0x80108000",
+    "intermediate_zero_point": -128,
+    "sha256": {
+      "input": "9b3d9d6ba64079304f99477cd6689a44018e7ab6987d7611d8bfc0ec3be5d81d",
+      "layer1_weights": "ffcb8f0e07bcdddbfc375df038dd6a487714e1c984d132510a78bf32dea8d9e6",
+      "layer2_weights": "d1743ee4e4b4194ff5d9b4a6e8ae283d773dcd2367d28c81d05942ac033a20c8",
+      "layer1_params": "5c9bfea0ecf476653981e33d20d14c0fe06e9267f664ffce31ad124a29e488c6",
+      "layer2_params": "5e0efcd5ce6e5e1bfad379c713d2828985c3fb8a2dce02ab621056296ddc89d7",
+      "intermediate_golden": "877299da8c940c038a02e2b5adee0f47dbce2f419697648394dcb2f0317ddb8f",
+      "final_golden": "d7cdf95208b7a5deb4237821f0411f758335bf7e2277942b4a416839251d1647"
+    }
+  },
+  "fpga_part": "xc7k325tffg900-2",
+  "core_clock_hz": 50000000
+}

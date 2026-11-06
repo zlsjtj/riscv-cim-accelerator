@@ -1,0 +1,94 @@
+{
+  "variant": "banked-early-write",
+  "usr_access": "43494d48",
+  "bit_sha256": "ffdbb1dbda759c958ebf59f5e31aaa58eea08d40fe166081f437cb6513d09c44",
+  "wns_ns": 6.071,
+  "whs_ns": 0.085,
+  "unconstrained_internal": 0,
+  "spad_ramb36": 2,
+  "interlayer_ramb36": 2,
+  "next_addr_ffs": 32,
+  "hierarchy": {
+    "cim_k7_top": {
+      "lut": 16376,
+      "ff": 11233,
+      "ramb36": 20,
+      "ramb18": 0,
+      "dsp": 8
+    },
+    "system": {
+      "lut": 16348,
+      "ff": 11166,
+      "ramb36": 20,
+      "ramb18": 0,
+      "dsp": 8
+    },
+    "(system)": {
+      "lut": 12,
+      "ff": 166,
+      "ramb36": 16,
+      "ramb18": 0,
+      "dsp": 0
+    },
+    "accel": {
+      "lut": 10450,
+      "ff": 8218,
+      "ramb36": 4,
+      "ramb18": 0,
+      "dsp": 4
+    },
+    "(accel)": {
+      "lut": 3313,
+      "ff": 3645,
+      "ramb36": 4,
+      "ramb18": 0,
+      "dsp": 0
+    },
+    "macro_unit": {
+      "lut": 6320,
+      "ff": 4532,
+      "ramb36": 0,
+      "ramb18": 0,
+      "dsp": 0
+    },
+    "quant_unit": {
+      "lut": 820,
+      "ff": 41,
+      "ramb36": 0,
+      "ramb18": 0,
+      "dsp": 4
+    },
+    "cpu": {
+      "lut": 5888,
+      "ff": 2782,
+      "ramb36": 0,
+      "ramb18": 0,
+      "dsp": 4
+    }
+  },
+  "critical_setup": [
+    "Source:                 system/accel/quant_unit/product_reg__0/CLK",
+    "Destination:            system/accel/output_bytes_reg[1][50]/D",
+    "Path Group:             raw_clk",
+    "Path Type:              Setup (Max at Slow Process Corner)",
+    "Requirement:            20.000ns  (raw_clk rise@20.000ns - raw_clk rise@0.000ns)",
+    "Data Path Delay:        13.686ns  (logic 6.498ns (47.480%)  route 7.188ns (52.520%))"
+  ],
+  "drc_rules": [
+    "| DPIP-1 | Warning  | Input pipelining       | 8          |",
+    "| DPOP-1 | Warning  | PREG Output pipelining | 4          |",
+    "| DPOP-2 | Warning  | MREG Output pipelining | 8          |"
+  ],
+  "route_summary": [
+    "       # of routable nets..................... :       28329 :",
+    "       # of nets with routing errors.......... :           0 :"
+  ],
+  "report_sha256": {
+    "timing.rpt": "a0654d0923e2f3d57da1ea93de330c3869884291e054867ea44895be001b9669",
+    "check_timing.rpt": "bae10a4a0174441d822da931cef466d0aef604a4fcc21abef0b56cc4b67e773a",
+    "utilization.rpt": "10c9096a94fb7b1643d1832569f54f394855647b25c56d9a2c4718f41dff5486",
+    "critical_paths.rpt": "b41682cad95b08b73834b7fc1b16e09970fc1350358682551ac86158ac05efbd",
+    "route.rpt": "617312b80fc95709de8181e6a6fc487d1db00846dfb8dd07a4535a19bc69e735",
+    "drc.rpt": "fd65fe8f2d25c90a1393bb8a25babf13de236def1545548933634c016eb937bb"
+  }
+}

@@ -1,0 +1,13 @@
+M,method,board_cycles,board_us,soc_cycles
+1,two_starts,9770,195.40,9770
+1,chain_sram,9617,192.34,9617
+1,rv32im_c,45994,919.88,45994
+1,chain_retain,9614,192.28,9614
+1,chain_prefetch,9611,192.22,9611
+1,chain_early_write,9606,192.12,9606
+125,two_starts,47197,943.94,47197
+125,chain_sram,47062,941.24,47062
+125,rv32im_c,5493590,109871.80,5493590
+125,chain_retain,46181,923.62,46181
+125,chain_prefetch,41231,824.62,41231
+125,chain_early_write,39730,794.60,39730
