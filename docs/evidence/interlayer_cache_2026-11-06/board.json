@@ -1,0 +1,72 @@
+{
+  "uart_baud": 115200,
+  "variant": "banked-retain",
+  "bit_sha256": "030a3b0ecb7464375ea95da3d19024599b3437507a27fca286d9c5633c83fd90",
+  "usr_access": "43494d46",
+  "chain": [
+    {
+      "method": 0,
+      "M": 1,
+      "cycles": 9772,
+      "bytes_per_layer": 64,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 1,
+      "M": 1,
+      "cycles": 9610,
+      "bytes_per_layer": 64,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 2,
+      "M": 1,
+      "cycles": 45995,
+      "bytes_per_layer": 64,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 3,
+      "M": 1,
+      "cycles": 9610,
+      "bytes_per_layer": 64,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 0,
+      "M": 125,
+      "cycles": 47196,
+      "bytes_per_layer": 8000,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 1,
+      "M": 125,
+      "cycles": 47058,
+      "bytes_per_layer": 8000,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 2,
+      "M": 125,
+      "cycles": 5493594,
+      "bytes_per_layer": 8000,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 3,
+      "M": 125,
+      "cycles": 46177,
+      "bytes_per_layer": 8000,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    }
+  ]
+}

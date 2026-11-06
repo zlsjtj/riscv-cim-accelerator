@@ -12,6 +12,10 @@ pointwise 卷积。RISC-V 固件装入输入、权重、bias、逐通道 multipl
 链式和两次 START 共用中间 SRAM 地址，在同一 K7 50 MHz 位流上
 对照。[两层实测、RV32IM C 基线与复现](docs/TWO_LAYER.md)
 
+可选的 `banked-retain` 在第一层写回时同步保留中间激活。M125
+相对链式 SRAM 重读省 2,000 次共享读和 17.62 µs，增加两块
+RAMB36。[同板实测与复现](docs/INTERLAYER_CACHE.md)
+
 K7 构建默认启用请求周转与 8 KiB 双 bank 输入缓存。与 32 位回放相比，
 双 bank 在同一 50 MHz 下将 M125 重叠从 26,719 降至 23,191 拍，
 任务延迟减少 13.20%，缓存仍用两块 RAMB36。[双 bank 实测与逐拍归因](docs/BANKED_REPLAY.md)

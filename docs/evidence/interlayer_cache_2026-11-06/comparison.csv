@@ -1,0 +1,9 @@
+M,method,board_cycles,board_us,soc_cycles
+1,two_starts,9772,195.44,9772
+1,chain_sram,9610,192.20,9607
+1,rv32im_c,45995,919.90,46001
+1,chain_retain,9610,192.20,9607
+125,two_starts,47196,943.92,47196
+125,chain_sram,47058,941.16,47055
+125,rv32im_c,5493594,109871.88,5493597
+125,chain_retain,46177,923.54,46174
