@@ -58,12 +58,13 @@ def prepared_hashes():
                                                "cpu_include/myCPU_m_ext.sv")}
 
 
-def check_prepared(source):
+def check_prepared(source, two_layer):
     metadata = OUT / "build_metadata.json"
     if not metadata.is_file():
         raise ValueError("Run k7.py prepare with the same --out and --cpu-source first")
     record = json.loads(metadata.read_text(encoding="utf-8"))
-    if record.get("cpu_sources") != cpu_hashes(source) or record.get("prepared_files") != prepared_hashes():
+    if (record.get("cpu_sources") != cpu_hashes(source) or record.get("prepared_files") != prepared_hashes()
+            or record.get("two_layer", False) != two_layer):
         raise ValueError("CPU sources or generated files differ from prepare. Run k7.py prepare again")
 
 
@@ -81,7 +82,7 @@ def stage_m_unit(source):
             "staged_sha256": sha(patched), "change": "M-unit reset is sampled on clk"}
 
 
-def prepare(source, tools):
+def prepare(source, tools, two_layer):
     sources = cpu_hashes(source)
     cases = generate("real")
     case = next((case for case in cases if case["M"] == 125 and "activation_sha256" in case), None)
@@ -97,7 +98,8 @@ def prepare(source, tools):
     cc = tools / "riscv-none-elf-gcc.exe"
     copy = tools / "riscv-none-elf-objcopy.exe"
     run([cc, "--version"], "gcc_version.log")
-    run([cc, "-march=rv32im", "-mabi=ilp32", "-Os", "-ffreestanding",
+    defines = ["-DCIM_TWO_LAYER"] if two_layer else []
+    run([cc, "-march=rv32im", "-mabi=ilp32", "-Os", "-ffreestanding", *defines,
          "-fno-builtin", "-msmall-data-limit=0", "-mno-relax",
          "-ffunction-sections", "-fdata-sections", "-nostdlib",
          "-Wl,--gc-sections,--no-relax,-Map=firmware.map",
@@ -110,10 +112,14 @@ def prepare(source, tools):
     ram = bytearray(65536)
     data = (OUT / "data.bin").read_bytes()
     ram[:len(data)] = data
-    ram[0xa000:0xa000+8000] = activation
-    ram[0xc000:0xd000] = memory[0x4000:0x5000]
-    ram[0xd000:0xd300] = memory[0x6000:0x6300]
-    ram[0xd400:0xd400+8000] = golden
+    if two_layer:
+        from chain_fixture import populate
+        chain = populate(ram, idx)
+    else:
+        ram[0xa000:0xa000+8000] = activation
+        ram[0xc000:0xd000] = memory[0x4000:0x5000]
+        ram[0xd000:0xd300] = memory[0x6000:0x6300]
+        ram[0xd400:0xd400+8000] = golden
     word_image(OUT / "sram.mem", ram)
     word_image(OUT / "firmware.mem", text.ljust(16384, b"\x00"))
     metadata = {
@@ -122,9 +128,12 @@ def prepare(source, tools):
         "firmware_elf_sha256": sha(OUT / "firmware.elf"), "text_bytes": len(text),
         "fixture_case": idx, "activation_sha256": case["activation_sha256"],
         "golden_sha256": hashlib.sha256(golden).hexdigest(),
+        "two_layer": two_layer,
         "m_unit_reset_patch": m_unit,
         "fpga_part": "xc7k325tffg900-2", "ref_clock_hz": 200000000, "core_clock_hz": 50000000,
     }
+    if two_layer:
+        metadata["chain"] = chain
     (OUT / "build_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
 
@@ -140,6 +149,22 @@ def parse_results(output):
                              mismatches=bad, committed_words=writes))
     if "CIM_PASS" not in output.split() or [(row["mode"], row["M"]) for row in rows] != EXPECTED:
         raise RuntimeError("Incomplete accelerator result sequence")
+    return rows
+
+
+def parse_chain_results(output):
+    rows = []
+    for line in output.splitlines():
+        match = re.fullmatch(r"(?:# )?CHAIN_RESULT ((?:[0-9a-f]{8} ){6}[0-9a-f]{8})", line.strip())
+        if match:
+            method, m, cycles, count, mid_bad, out_bad, status = (int(field, 16) for field in match[1].split())
+            if not cycles or count != 64*m or mid_bad or out_bad or status:
+                raise ValueError(f"Invalid result: {line}")
+            rows.append(dict(method=method, M=m, cycles=cycles, bytes_per_layer=count,
+                             intermediate_mismatches=mid_bad, final_mismatches=out_bad))
+    expected = [(method, m) for m in (1, 125) for method in range(3)]
+    if "CIM_PASS" not in output.split() or [(row["method"], row["M"]) for row in rows] != expected:
+        raise RuntimeError("Incomplete two-layer result sequence")
     return rows
 
 
@@ -176,7 +201,7 @@ def parse_resets(output):
     return rows
 
 
-def simulate(source, questa, trace_blocks, profile_tasks, turn, cache):
+def simulate(source, questa, trace_blocks, profile_tasks, turn, cache, two_layer):
     if not (OUT / "work").exists():
         run([questa / "vlib.exe", "work"], "vlib.log")
     sources = cpu_files(source) + sorted((ROOT / "rtl").glob("*.sv")) + [
@@ -184,26 +209,33 @@ def simulate(source, questa, trace_blocks, profile_tasks, turn, cache):
     run([questa / "vlog.exe", "-sv", f"+incdir+{OUT / 'cpu_include'}+{source / 'common'}",
          *sources], "soc_compile.log")
     generics = [f"-gTURNAROUND={turn}", f"-gINPUT_CACHE={cache}"]
+    control_test = "+TEST_CHAIN_CONTROL" if two_layer else "+TEST_START_COUNTER"
+    control_pass = "PASS chain control" if two_layer else "PASS accepted START"
     counter = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", *generics, "tb_rv_system",
-                   "+TEST_START_COUNTER", "-do",
+                   control_test, "-do",
                    "onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0"],
                   "start_counter.log")
-    if "PASS accepted START" not in counter:
-        raise RuntimeError("Accepted START commit counter test did not pass")
+    if control_pass not in counter:
+        raise RuntimeError("SoC directed control test did not pass")
     # Existing RF and predictor arrays have power-up initializers as well as
     # always_ff writes. Keep the source intact and allow that Questa diagnostic.
     trace_args = ["+TRACE_BLOCKS"] if trace_blocks else []
     if profile_tasks:
         trace_args.append("+PROFILE_TASKS")
+    if two_layer:
+        trace_args.append("+TEST_CHAIN")
     output = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", *generics, "tb_rv_system", *trace_args, "-do",
                   "onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0"],
                  "soc_simulation.log")
+    if two_layer:
+        (OUT / "soc_chain_results.json").write_text(json.dumps(parse_chain_results(output), indent=2), encoding="utf-8")
+        return
     (OUT / "soc_results.json").write_text(json.dumps(parse_results(output), indent=2), encoding="utf-8")
     (OUT / "soc_reset_results.json").write_text(json.dumps(parse_resets(output), indent=2), encoding="utf-8")
     (OUT / "soc_cpu_results.json").write_text(json.dumps(parse_cpu_results(output), indent=2), encoding="utf-8")
 
 
-def program(vivado, target, port, archive, variant, usr_access):
+def program(vivado, target, port, archive, variant, usr_access, two_layer):
     import serial
 
     bit = archive if archive else OUT / "cim_k7.bit"
@@ -233,11 +265,12 @@ def program(vivado, target, port, archive, variant, usr_access):
     (OUT / "board_uart.log").write_bytes(transcript)
     output = transcript.decode("ascii", errors="replace")
     print(output)
-    rows = parse_results(output)
-    resets = parse_resets(output)
     result = {"jtag_serial": target, "uart_port": port, "uart_baud": 115200,
-              "variant": variant, "bit_sha256": sha(bit), "usr_access": usr_access,
-              "resets": resets, "tasks": rows, "software": parse_cpu_results(output)}
+              "variant": variant, "bit_sha256": sha(bit), "usr_access": usr_access}
+    if two_layer:
+        result["chain"] = parse_chain_results(output)
+    else:
+        result.update(resets=parse_resets(output), tasks=parse_results(output), software=parse_cpu_results(output))
     (OUT / "board_results.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
 
 
@@ -251,12 +284,15 @@ def main():
     parser.add_argument("--variant", choices=VARIANTS, default=DEFAULT_K7_VARIANT,
                         help=f"hardware configuration (default: {DEFAULT_K7_VARIANT})")
     parser.add_argument("--out", type=Path, help="Build and capture directory")
+    parser.add_argument("--two-layer", action="store_true", help="run the banked two-layer benchmark firmware")
     parser.add_argument("--bitstream", type=Path, help="For program, a matching bit beside impl_vivado.log")
     parser.add_argument("--trace-blocks", action="store_true", help="For sim, write task-relative block_trace.csv")
     parser.add_argument("--profile-tasks", action="store_true", help="For sim, write task-relative task_edges.csv")
     parser.add_argument("--jtag")
     parser.add_argument("--port")
     args = parser.parse_args()
+    if args.two_layer and args.variant != "banked":
+        parser.error("--two-layer requires the banked configuration")
     if args.bitstream and args.step != "program":
         parser.error("--bitstream requires program")
     if args.trace_blocks and args.step != "sim":
@@ -271,17 +307,20 @@ def main():
             parser.error("prepare requires --gcc-bin or riscv-none-elf-gcc.exe on PATH")
         args.gcc_bin = Path(gcc).parent
     turn, cache, usr_access = VARIANTS[args.variant]
-    OUT = (args.out or ROOT / f"build/k7_matrix_{args.variant}").resolve()
+    default_out = "k7_two_layer" if args.two_layer else f"k7_matrix_{args.variant}"
+    if args.two_layer:
+        usr_access = "43494d45"
+    OUT = (args.out or ROOT / "build" / default_out).resolve()
     source = args.cpu_source.resolve() if args.cpu_source else None
     vivado = Path(os.environ.get("VIVADO_BIN", "E:/Xilinx/Vivado/2023.2/bin")) / "vivado.bat"
     questa = Path(os.environ.get("QUESTA_BIN", "E:/questasim64_2024.1/win64"))
     OUT.mkdir(parents=True, exist_ok=True)
     if args.step in ("sim", "impl"):
-        check_prepared(source)
+        check_prepared(source, args.two_layer)
     if args.step == "prepare":
-        prepare(source, args.gcc_bin.resolve())
+        prepare(source, args.gcc_bin.resolve(), args.two_layer)
     elif args.step == "sim":
-        simulate(source, questa, args.trace_blocks, args.profile_tasks, turn, cache)
+        simulate(source, questa, args.trace_blocks, args.profile_tasks, turn, cache, args.two_layer)
     elif args.step == "impl":
         output = run([vivado, "-mode", "batch", "-nojournal", "-log", "impl_vivado.log",
                       "-source", ROOT / "fpga/build_k7.tcl", "-tclargs", source, turn, cache, usr_access],
@@ -290,11 +329,11 @@ def main():
             raise RuntimeError("Implementation did not pass the bitstream gate")
         record = {"bit_sha256": sha(OUT / "cim_k7.bit"), "usr_access": usr_access,
                   "variant": args.variant, "turnaround": turn, "input_cache": cache,
-                  "prepared_files": prepared_hashes()}
+                  "prepared_files": prepared_hashes(), "two_layer": args.two_layer}
         (OUT / "bitstream_metadata.json").write_text(json.dumps(record, indent=2), encoding="utf-8")
     else:
         program(vivado, args.jtag, args.port, args.bitstream.resolve() if args.bitstream else None,
-                args.variant, usr_access)
+                args.variant, usr_access, args.two_layer)
 
 
 if __name__ == "__main__":

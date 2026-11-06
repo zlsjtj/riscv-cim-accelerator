@@ -25,6 +25,8 @@ module cim_accel #(
  logic busy, done, error;
  logic [31:0] shadow_m, shadow_a, shadow_w, shadow_p, shadow_y, shadow_mode;
  logic [31:0] a_base,w_base,p_base,y_base;
+ logic [31:0] shadow_w2,shadow_p2,shadow_y2,w2_base,p2_base,y2_base;
+ logic chain_pending;
  logic [7:0] task_m, next_p;
  logic mode;
  logic [2:0] tile;
@@ -74,7 +76,8 @@ module cim_accel #(
 
  assign start_accepted = rst_n && cfg_valid && cfg_write && cfg_addr==8'h00 &&
                          cfg_wdata[0] && !busy && shadow_m>=1 && shadow_m<=125 &&
-                         shadow_mode<=1 && ((shadow_a|shadow_w|shadow_p|shadow_y)&32'h3)==0;
+                         shadow_mode<=1 && ((shadow_a|shadow_w|shadow_p|shadow_y)&32'h3)==0 &&
+                         (!cfg_wdata[2] || ((shadow_w2|shadow_p2|shadow_y2)&32'h3)==0);
 
  // A returning input word releases the single read credit on this edge.
  // Only offer the next word of the same context, with ready writes taking
@@ -163,6 +166,9 @@ module cim_accel #(
    8'h20: cfg_rdata=cycles;
    8'h24: cfg_rdata=mem_wait;
    8'h28: cfg_rdata=macro_cycles;
+   8'h2c: cfg_rdata=shadow_w2;
+   8'h30: cfg_rdata=shadow_p2;
+   8'h34: cfg_rdata=shadow_y2;
    default: cfg_rdata=0;
   endcase
   sched_valid=0; sched_ctx=0; sched_high=0;
@@ -193,6 +199,7 @@ module cim_accel #(
   if(!rst_n) begin
    state<=IDLE; busy<=0;done<=0;error<=0;
    shadow_m<=1;shadow_a<=0;shadow_w<=0;shadow_p<=0;shadow_y<=0;shadow_mode<=0;
+   shadow_w2<=0;shadow_p2<=0;shadow_y2<=0;w2_base<=0;p2_base<=0;y2_base<=0;chain_pending<=0;
    a_base<=0;w_base<=0;p_base<=0;y_base<=0;task_m<=0;mode<=0;tile<=0;next_p<=0;
    cycles<=0;mem_wait<=0;macro_cycles<=0;
    request_valid<=0;mem_write<=0;request_addr<=0;mem_wdata<=0;mem_wstrb<=0;
@@ -225,6 +232,9 @@ module cim_accel #(
      8'h14: shadow_p<=cfg_wdata;
      8'h18: shadow_y<=cfg_wdata;
      8'h1c: shadow_mode<=cfg_wdata;
+     8'h2c: shadow_w2<=cfg_wdata;
+     8'h30: shadow_p2<=cfg_wdata;
+     8'h34: shadow_y2<=cfg_wdata;
      8'h00: begin
       if(cfg_wdata[1]) done<=0;
       if(cfg_wdata[0]) begin
@@ -233,6 +243,8 @@ module cim_accel #(
         busy<=1;done<=0;error<=0;state<=PARAM;
         task_m<=shadow_m[7:0];a_base<=shadow_a;w_base<=shadow_w;
         p_base<=shadow_p;y_base<=shadow_y;mode<=shadow_mode[0];
+        chain_pending<=cfg_wdata[2];
+        w2_base<=shadow_w2;p2_base<=shadow_p2;y2_base<=shadow_y2;
         tile<=0;next_p<=0;load_word<=0;cycles<=0;mem_wait<=0;macro_cycles<=0;
         live<=0;input_ready<=0;issued_low<=0;issued_high<=0;recon_done<=0;output_ready<=0;
         raw_valid<=0;raw_reserved<=0;write_index<=0;rd_pending<=0;request_valid<=0;
@@ -388,8 +400,14 @@ module cim_accel #(
     if(next_p==task_m && live==0 && raw_valid==0 && raw_reserved==0 &&
        !mac_busy && !mac_valid && !mem_valid && !rd_pending && !q_result_valid &&
        !spad_active && !spad_rvalid) begin
-     if(tile==7) begin busy<=0;done<=1;state<=IDLE;end
-     else begin tile<=tile+1;load_word<=0;state<=PARAM;next_p<=0;end
+     if(tile!=7) begin tile<=tile+1;load_word<=0;state<=PARAM;next_p<=0;end
+     else if(chain_pending) begin
+      // Every intermediate write has committed. Tile zero refills the cache
+      // from the intermediate SRAM exactly as a fresh single-layer task.
+      chain_pending<=0;
+      a_base<=y_base;w_base<=w2_base;p_base<=p2_base;y_base<=y2_base;
+      tile<=0;load_word<=0;state<=PARAM;next_p<=0;
+     end else begin busy<=0;done<=1;state<=IDLE;end
     end
    end
   end

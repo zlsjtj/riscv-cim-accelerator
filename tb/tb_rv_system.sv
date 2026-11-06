@@ -17,6 +17,12 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
     );
 
     logic counter_test;
+    logic chain_test, chain_control_test;
+    int chain_windows = 0, chain_starts, chain_dones, chain_mid_writes, chain_final_writes;
+    int chain_core_cycles;
+    logic chain_final_read;
+    wire [31:0] chain_words = chain_windows < 3 ? 32'd16 : 32'd2000;
+    wire [31:0] chain_method = chain_windows % 3;
     logic [31:0] test_addr, test_data;
     logic test_wen;
     task write_test_cfg(input [7:0] addr, input [31:0] data);
@@ -58,6 +64,45 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
         if (dut.committed_writes!=0 || !dut.accel.busy)
             $fatal(1,"Accepted START did not clear write history");
         $display("PASS accepted START clears commit counter, rejected START preserves it");
+        $finish;
+    endtask
+
+    task test_chain_control;
+        force dut.cpu_addr=test_addr;
+        force dut.cpu_wdata=test_data;
+        force dut.cpu_mask=2'b10;
+        force dut.cpu_wen=test_wen;
+        write_test_cfg('h08,1);
+        write_test_cfg('h0c,'h80101000);
+        write_test_cfg('h10,'h80103000);
+        write_test_cfg('h14,'h80105000);
+        write_test_cfg('h18,'h80106000);
+        write_test_cfg('h2c,'h80104001);
+        write_test_cfg('h30,'h80105400);
+        write_test_cfg('h34,'h80108000);
+        write_test_cfg('h00,5);
+        if (dut.accel.busy || !dut.accel.error || dut.committed_writes)
+            $fatal(1,"Unaligned second-layer address was accepted");
+        write_test_cfg('h2c,'h80104000);
+        write_test_cfg('h00,5);
+        if (!dut.accel.busy || dut.accel.error) $fatal(1,"Legal chain START failed");
+        write_test_cfg('h2c,'h80104004);
+        write_test_cfg('h30,'h80105404);
+        write_test_cfg('h34,'h80108004);
+        wait(dut.accel.a_base == 'h80106000);
+        if (dut.accel.w_base != 'h80104000 || dut.accel.p_base != 'h80105400 ||
+            dut.accel.y_base != 'h80108000 || dut.committed_writes != 16 ||
+            !dut.accel.busy || dut.accel.done)
+            $fatal(1,"Chain handoff consumed shadow configuration or exposed early DONE");
+        wait(dut.mem_rvalid && dut.accel.rd_pending);
+        @(negedge clk);
+        rst_n = 0;
+        @(negedge clk);
+        if (dut.accel.busy || dut.accel.done || dut.accel.error ||
+            dut.accel.chain_pending || dut.accel.rd_pending || dut.mem_valid || dut.mem_rvalid ||
+            dut.committed_writes)
+            $fatal(1,"Chain survived reset in layer two");
+        $display("PASS chain control alignment, shadow snapshot, commit and reset");
         $finish;
     endtask
 
@@ -132,13 +177,49 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
                 $fdisplay(traffic_file, "%0d,%0d,%0d,%0d,%0d,%0d,%0d", dut.accel.mode,
                           dut.accel.task_m, dut.accel.cycles, shared_reads, shared_writes, local_reads, local_writes);
         end
-        if (dut.sw_active && dut.cpu_store && dut.cpu_store_word >= 14'h2000 &&
+        if (chain_test && dut.sw_active) begin
+            if (dut.start_accepted) chain_starts++;
+            if (dut.accel.done && !was_done) begin
+                chain_dones++;
+                chain_core_cycles+=dut.accel.cycles;
+            end
+            if (dut.cim_access && !dut.mem_write && dut.b_word >= 14'h1800 &&
+                dut.b_word < 14'h1800 + chain_words && chain_mid_writes != chain_words)
+                $fatal(1, "Accelerator consumed an uncommitted intermediate");
+            if (dut.cpu_store || (dut.cim_access && dut.mem_write)) begin
+                if (((dut.b_word >= 14'h1800 && dut.b_word < 14'h1800 + chain_words) ||
+                     (dut.b_word >= 14'h2000 && dut.b_word < 14'h2000 + chain_words)) &&
+                    dut.cpu_store != (chain_method == 2))
+                    $fatal(1, "Result commit came from the wrong engine");
+                if (dut.b_word >= 14'h1800 && dut.b_word < 14'h1800 + chain_words)
+                    chain_mid_writes++;
+                if (dut.b_word >= 14'h2000 && dut.b_word < 14'h2000 + chain_words) begin
+                    if (chain_mid_writes != chain_words) $fatal(1, "Early layer-two write");
+                    chain_final_writes++;
+                end
+            end
+            if (!dut.cpu_wen && dut.cpu_addr == 32'h80108000 + 4*(chain_words-1) &&
+                chain_final_writes == chain_words)
+                chain_final_read = 1;
+        end
+        if (!chain_test && dut.sw_active && dut.cpu_store && dut.cpu_store_word >= 14'h2000 &&
             dut.cpu_store_word < 14'h27d0) begin
             software_output_words++;
             last_software_commit = dut.sw_cycles+1;
         end
         if (dut.run_n && dut.cpu_wen && dut.cpu_mask == 2'b10 && dut.cpu_addr == dut.SW_TIMER) begin
-            if (dut.cpu_wdata[0]) begin
+            if (chain_test && dut.cpu_wdata[0]) begin
+                chain_starts=0; chain_dones=0; chain_core_cycles=0;
+                chain_mid_writes=0; chain_final_writes=0; chain_final_read=0;
+            end else if (chain_test) begin
+                if (!dut.sw_active || chain_mid_writes != chain_words || chain_final_writes != chain_words ||
+                    chain_starts != 2-chain_method || chain_dones != chain_starts || !chain_final_read)
+                    $fatal(1, "Incomplete chain timer window method=%0d starts=%0d done=%0d mid=%0d final=%0d read=%0d",
+                           chain_method, chain_starts, chain_dones, chain_mid_writes, chain_final_writes, chain_final_read);
+                $display("CHAIN_WINDOW method=%0d starts=%0d done=%0d mid_words=%0d final_words=%0d core_cycles=%0d",
+                         chain_method, chain_starts, chain_dones, chain_mid_writes, chain_final_writes, chain_core_cycles);
+                chain_windows++;
+            end else if (dut.cpu_wdata[0]) begin
                 software_output_words=0;
                 last_software_commit=0;
             end else begin
@@ -166,8 +247,12 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
             if (tx_data == 10) begin
                 $display("%s", line);
                 if (line == "CIM_PASS") begin
-                    if (reset_count != 2) $fatal(1, "Expected two warm resets");
-                    if (software_runs != 2) $fatal(1, "Expected two complete software timer windows");
+                    if (chain_test) begin
+                        if (chain_windows != 6) $fatal(1, "Expected six complete chain timer windows");
+                    end else begin
+                        if (reset_count != 2) $fatal(1, "Expected two warm resets");
+                        if (software_runs != 2) $fatal(1, "Expected two complete software timer windows");
+                    end
                     $fclose(traffic_file);
                     if (profile_file) $fclose(profile_file);
                     $finish;
@@ -180,7 +265,9 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
     end
     initial begin
         counter_test = $test$plusargs("TEST_START_COUNTER");
-        if (!counter_test) begin
+        chain_test = $test$plusargs("TEST_CHAIN");
+        chain_control_test = $test$plusargs("TEST_CHAIN_CONTROL");
+        if (!counter_test && !chain_control_test) begin
             traffic_file = $fopen("traffic.csv", "w");
             if (!traffic_file) $fatal(1, "Cannot open traffic.csv");
             $fdisplay(traffic_file, "mode,M,cycles,shared_reads,shared_writes,cache_reads,cache_writes");
@@ -192,7 +279,11 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
             test_start_counter();
             begin repeat (20000) @(posedge clk); $fatal(1, "Commit counter test timed out"); end
         join
-        repeat (4000000) @(posedge clk);
-        $fatal(1, "RV32I firmware timed out");
+        if (chain_control_test) fork
+            test_chain_control();
+            begin repeat (20000) @(posedge clk); $fatal(1, "Chain control test timed out"); end
+        join
+        repeat (chain_test ? 9000000 : 4000000) @(posedge clk);
+        $fatal(1, "RV32IM firmware timed out");
     end
 endmodule

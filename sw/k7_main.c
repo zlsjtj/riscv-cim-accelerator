@@ -67,6 +67,90 @@ static void print_hex(uint32_t value) {
     }
 }
 
+#ifdef CIM_TWO_LAYER
+enum {
+    CHAIN_W1 = 0x80103000, CHAIN_W2 = 0x80104000,
+    CHAIN_P1 = 0x80105000, CHAIN_P2 = 0x80105400,
+    CHAIN_MID = 0x80106000, CHAIN_Y = 0x80108000,
+    CHAIN_G1 = 0x8010a000, CHAIN_G2 = 0x8010c000, CHAIN_SCRATCH = 0x8010e000
+};
+
+static uint32_t compare_bytes(uint32_t base, uint32_t golden, uint32_t bytes) {
+    uint32_t bad = 0;
+    for (uint32_t offset = 0; offset < bytes; offset += 4) {
+        uint32_t difference = read_word(base + offset) ^ read_word(golden + offset);
+        for (unsigned lane = 0; lane < 4; ++lane) {
+            bad += (difference & 255u) != 0;
+            difference >>= 8;
+        }
+    }
+    return bad;
+}
+
+static void compute_layer(const cim_task *task) {
+    cim_sw_pointwise(task->m, (const uint8_t *)(uintptr_t)task->a_base,
+                     (const int8_t *)(uintptr_t)task->w_base,
+                     (const int32_t *)(uintptr_t)task->p_base,
+                     (uint32_t *)(uintptr_t)task->y_base);
+}
+
+static int run_pair(const cim_device *dev, uint32_t m, unsigned kind) {
+    const cim_task first = {m, A_BASE, CHAIN_W1, CHAIN_P1, CHAIN_MID, 1};
+    const cim_task second = {m, CHAIN_MID, CHAIN_W2, CHAIN_P2, CHAIN_Y, 1};
+    uint32_t bytes = m << 6;
+    for (uint32_t offset = 0; offset < bytes; offset += 4) {
+        write_word(CHAIN_MID + offset, ~read_word(CHAIN_G1 + offset));
+        write_word(CHAIN_Y + offset, ~read_word(CHAIN_G2 + offset));
+    }
+    // Replace recent CPU stores to the outputs with unrelated stores before START.
+    for (uint32_t offset = 0; offset < 256; offset += 4)
+        write_word(CHAIN_SCRATCH + offset, offset);
+    visibility(0);
+    write_word(SW_TIMER, 1);
+    int status = CIM_OK;
+    if (kind == 2) {
+        compute_layer(&first);
+        compute_layer(&second);
+    } else if (kind == 1) {
+        status = cim_submit_pair(dev, &first, &second);
+        if (status == CIM_OK) status = cim_wait(dev, 1000000, 0);
+    } else {
+        status = cim_submit(dev, &first);
+        if (status == CIM_OK) status = cim_wait(dev, 1000000, 0);
+        if (status == CIM_OK) status = cim_submit(dev, &second);
+        if (status == CIM_OK) status = cim_wait(dev, 1000000, 0);
+    }
+    visibility(0);
+    (void)read_word(CHAIN_Y + bytes - 4);
+    write_word(SW_TIMER, 0);
+    uint32_t cycles = read_word(SW_TIMER);
+    uint32_t mid_bad = compare_bytes(CHAIN_MID, CHAIN_G1, bytes);
+    uint32_t out_bad = compare_bytes(CHAIN_Y, CHAIN_G2, bytes);
+    print("CHAIN_RESULT ");
+    print_hex(kind); print_char(' ');
+    print_hex(m); print_char(' ');
+    print_hex(cycles); print_char(' ');
+    print_hex(bytes); print_char(' ');
+    print_hex(mid_bad); print_char(' ');
+    print_hex(out_bad); print_char(' ');
+    print_hex((uint32_t)status); print_char('\n');
+    return status != CIM_OK || !cycles || mid_bad || out_bad;
+}
+
+int main(void) {
+    static const cim_device dev = {0, cfg_read, cfg_write, visibility, visibility};
+    print("CIM_BOOT RV32IM two-layer tensor23\n");
+    for (uint32_t m = 1; m <= 125; m += 124)
+        for (unsigned kind = 0; kind < 3; ++kind)
+            if (run_pair(&dev, m, kind)) {
+                print("CIM_FAIL\n");
+                return 1;
+            }
+    print("CIM_PASS\n");
+    return 0;
+}
+#else
+
 static void prepare_task(uint32_t m) {
     uint32_t bytes = m << 6;
     // Every byte differs from golden until the accelerator writes it. Copy
@@ -206,3 +290,4 @@ int main(void) {
     print("CIM_FAIL\n");
     return 1;
 }
+#endif

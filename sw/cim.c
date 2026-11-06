@@ -62,17 +62,35 @@ static int device_valid(const cim_device *d) {
     return d && d->read32 && d->write32 && d->prepare && d->acquire;
 }
 
-int cim_submit(const cim_device *d, const cim_task *t) {
-    if (!device_valid(d) || !ranges_valid(t)) return CIM_EINVAL;
-    if (d->read32(d->context, CIM_STATUS) & CIM_BUSY) return CIM_EBUSY;
+static void write_task(const cim_device *d, const cim_task *t) {
     d->write32(d->context, CIM_M, t->m);
     d->write32(d->context, CIM_A_BASE, t->a_base);
     d->write32(d->context, CIM_W_BASE, t->w_base);
     d->write32(d->context, CIM_P_BASE, t->p_base);
     d->write32(d->context, CIM_Y_BASE, t->y_base);
     d->write32(d->context, CIM_MODE, t->mode);
+}
+
+int cim_submit(const cim_device *d, const cim_task *t) {
+    if (!device_valid(d) || !ranges_valid(t)) return CIM_EINVAL;
+    if (d->read32(d->context, CIM_STATUS) & CIM_BUSY) return CIM_EBUSY;
+    write_task(d, t);
     d->prepare(d->context);
     d->write32(d->context, CIM_CONTROL, CIM_START);
+    return CIM_OK;
+}
+
+int cim_submit_pair(const cim_device *d, const cim_task *first, const cim_task *second) {
+    if (!device_valid(d) || !ranges_valid(first) || !ranges_valid(second) ||
+        first->y_base != second->a_base || first->m != second->m || first->mode != second->mode)
+        return CIM_EINVAL;
+    if (d->read32(d->context, CIM_STATUS) & CIM_BUSY) return CIM_EBUSY;
+    write_task(d, first);
+    d->write32(d->context, CIM_W2_BASE, second->w_base);
+    d->write32(d->context, CIM_P2_BASE, second->p_base);
+    d->write32(d->context, CIM_Y2_BASE, second->y_base);
+    d->prepare(d->context);
+    d->write32(d->context, CIM_CONTROL, CIM_START | CIM_CHAIN);
     return CIM_OK;
 }
 
