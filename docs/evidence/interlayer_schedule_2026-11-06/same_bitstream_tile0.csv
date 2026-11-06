@@ -1,0 +1,7 @@
+task,M,layer2_start,run_start,run_cycles,input_wait,first_macro_offset,input_wait_replay,input_wait_no_replay,backend_cycles,backend_both_live,last_quant_result,last_write_commit,tail_cycles
+3,1,4468,4988,45,18,19,0,18,17,0,39,43,16
+4,1,4468,4988,37,10,11,8,2,17,0,31,35,16
+5,1,4468,4988,37,10,11,8,2,17,0,31,35,16
+8,125,23192,23712,3145,1878,19,0,1878,17,0,3139,3143,16
+9,125,23192,23712,2269,630,11,504,126,389,310,2263,2267,16
+10,125,23192,23712,1649,10,11,8,2,389,249,1643,1647,16

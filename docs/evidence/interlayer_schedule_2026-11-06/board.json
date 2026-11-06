@@ -1,0 +1,88 @@
+{
+  "uart_baud": 115200,
+  "variant": "banked-prefetch",
+  "bit_sha256": "56c8b106014d6b8a6abf0846a139e55a79205f207503bc30c92e424bc3a08687",
+  "usr_access": "43494d47",
+  "chain": [
+    {
+      "method": 0,
+      "M": 1,
+      "cycles": 9767,
+      "bytes_per_layer": 64,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 1,
+      "M": 1,
+      "cycles": 9612,
+      "bytes_per_layer": 64,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 2,
+      "M": 1,
+      "cycles": 46009,
+      "bytes_per_layer": 64,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 3,
+      "M": 1,
+      "cycles": 9612,
+      "bytes_per_layer": 64,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 4,
+      "M": 1,
+      "cycles": 9606,
+      "bytes_per_layer": 64,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 0,
+      "M": 125,
+      "cycles": 47200,
+      "bytes_per_layer": 8000,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 1,
+      "M": 125,
+      "cycles": 47057,
+      "bytes_per_layer": 8000,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 2,
+      "M": 125,
+      "cycles": 5493596,
+      "bytes_per_layer": 8000,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 3,
+      "M": 125,
+      "cycles": 46176,
+      "bytes_per_layer": 8000,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    },
+    {
+      "method": 4,
+      "M": 125,
+      "cycles": 41226,
+      "bytes_per_layer": 8000,
+      "intermediate_mismatches": 0,
+      "final_mismatches": 0
+    }
+  ]
+}
