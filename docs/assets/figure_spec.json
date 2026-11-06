@@ -1,0 +1,57 @@
+{
+  "generator": "generate.py",
+  "palette": [
+    "#152238",
+    "#526079",
+    "#2563EB",
+    "#0F766E",
+    "#F6F8FB",
+    "#D9E1EC"
+  ],
+  "typefaces": [
+    "Arial or Liberation Sans",
+    "Consolas or Liberation Mono"
+  ],
+  "architecture": {
+    "size": [
+      840,
+      560
+    ],
+    "source_commit": "a37a911",
+    "sources": [
+      "../../rtl/cim_accel.sv",
+      "../../rtl/cim_macro.sv",
+      "../../rtl/requant.sv",
+      "../KWS_SUBGRAPH.md"
+    ],
+    "control": "dashed with arrowheads",
+    "data": "solid with arrowheads",
+    "scope": "Two independently submitted PW operations, with CPU DW in between."
+  },
+  "latency": {
+    "size": [
+      840,
+      433
+    ],
+    "evidence_commit": "6002694",
+    "source": "../evidence/kws_subgraph/k7_board.json",
+    "source_sha256": "ac3c756719f12ded4d5cfc10e51ffd563ec649a857c1fd0a003220a9792715b0",
+    "axis_ms": [
+      0,
+      140
+    ],
+    "tick_ms": 20,
+    "display_decimals": 2,
+    "clock_mhz": 50,
+    "bitstream_readback": "43494d4a"
+  },
+  "social_preview": {
+    "size": [
+      1280,
+      640
+    ],
+    "max_bytes": 1000000,
+    "background": "opaque",
+    "headline": "Approximately 6.8x KWS subgraph speedup on K7 at 50 MHz vs. same-firmware RV32IM C."
+  }
+}

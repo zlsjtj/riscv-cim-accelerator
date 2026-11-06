@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+<title id="title">RISC-V CiM Accelerator</title><desc id="desc">Digital CiM proxy with open Ibex simulation and approximately 6.8 times lower KWS subgraph latency on K7 at 50 MHz.</desc>
+<rect x="0" y="0" width="1280" height="640" rx="0" fill="#F6F8FB" stroke="none" stroke-width="1.5"/>
+<rect x="40" y="40" width="1200" height="560" rx="26" fill="#FFFFFF" stroke="#D9E1EC" stroke-width="1.5"/>
+<rect x="833" y="65" width="382" height="510" rx="22" fill="#152238" stroke="none" stroke-width="1.5"/>
+<text x="82" y="117" fill="#2563EB" font-size="21" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">K7 FPGA  /  INT8  /  SYSTEMVERILOG</text>
+<text x="79" y="235" fill="#152238" font-size="88" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">RISC-V CiM</text>
+<text x="79" y="327" fill="#152238" font-size="88" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">Accelerator</text>
+<text x="84" y="392" fill="#526079" font-size="27" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Digital macro proxy · Open Ibex simulation</text>
+<rect x="85" y="477" width="189" height="64" rx="12" fill="#EAF1FF" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="179" y="518" fill="#152238" font-size="24" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="middle">CiM PW</text>
+<rect x="331" y="477" width="189" height="64" rx="12" fill="#E4F3F0" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="425" y="518" fill="#152238" font-size="24" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="middle">CPU DW</text>
+<rect x="577" y="477" width="189" height="64" rx="12" fill="#EAF1FF" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="671" y="518" fill="#152238" font-size="24" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="middle">CiM PW</text>
+<polyline points="274,509 331,509" fill="none" stroke="#0F766E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="331,509 322,505 322,513" fill="#0F766E"/>
+<polyline points="520,509 577,509" fill="none" stroke="#0F766E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="577,509 568,505 568,513" fill="#0F766E"/>
+<text x="875" y="156" fill="#BBD4FF" font-size="22" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">MEASURED ON K7</text>
+<text x="866" y="321" fill="#FFFFFF" font-size="102" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">≈6.8×</text>
+<text x="878" y="380" fill="#FFFFFF" font-size="27" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">KWS subgraph speedup</text>
+<text x="878" y="426" fill="#C8D6EA" font-size="23" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">50 MHz · Three operators</text>
+<text x="878" y="463" fill="#C8D6EA" font-size="21" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">vs. same-firmware RV32IM C</text>
+</svg>

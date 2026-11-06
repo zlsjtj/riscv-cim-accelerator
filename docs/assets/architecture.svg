@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="560" viewBox="0 0 840 560" role="img" aria-labelledby="title desc">
+<title id="title">RISC-V CiM system and KWS handoffs</title><desc id="desc">A RISC-V CPU controls a shared-SRAM accelerator over MMIO. CPU depthwise runs between two separately submitted pointwise tasks and exchanges tensors in SRAM.</desc>
+<rect x="0" y="0" width="840" height="560" rx="0" fill="#F6F8FB" stroke="none" stroke-width="1.5"/>
+<text x="30" y="41" fill="#152238" font-size="29" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">System architecture</text>
+<text x="30" y="69" fill="#526079" font-size="17" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Control, shared storage and the three-operator KWS path</text>
+<polyline points="529,61 563,61" fill="none" stroke="#0F766E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="563,61 554,57 554,65" fill="#0F766E"/>
+<text x="572" y="66" fill="#526079" font-size="14" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Data</text>
+<polyline points="644,61 679,61" fill="none" stroke="#2563EB" stroke-width="2.5" stroke-linejoin="round" stroke-dasharray="7 6"/>
+<polygon points="679,61 670,57 670,65" fill="#2563EB"/>
+<text x="688" y="66" fill="#526079" font-size="14" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">MMIO control</text>
+<rect x="30" y="127" width="210" height="132" rx="12" fill="#EAF1FF" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="46" y="163" fill="#152238" font-size="23" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">RISC-V CPU</text>
+<text x="46" y="191" fill="#526079" font-size="16" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Ibex: public simulation</text>
+<text x="46" y="219" fill="#526079" font-size="16" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">K7: JYDD CPU</text>
+<rect x="296" y="127" width="205" height="132" rx="12" fill="#E4F3F0" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="312" y="163" fill="#152238" font-size="23" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">Shared SRAM</text>
+<text x="312" y="191" fill="#526079" font-size="16" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Activations A / B</text>
+<text x="312" y="219" fill="#526079" font-size="16" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Weights + quantization</text>
+<polyline points="240,196 296,196" fill="none" stroke="#0F766E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="296,196 287,192 287,200" fill="#0F766E"/>
+<polygon points="240,196 249,200 249,192" fill="#0F766E"/>
+<rect x="558" y="98" width="252" height="272" rx="12" fill="#FFFFFF" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="574" y="127" fill="#152238" font-size="22" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">CiM accelerator</text>
+<rect x="573" y="142" width="222" height="37" rx="7" fill="#F6F8FB" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="684" y="166" fill="#152238" font-size="15" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="middle">Banked input cache</text>
+<rect x="573" y="191" width="222" height="37" rx="7" fill="#EAF1FF" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="684" y="215" fill="#152238" font-size="15" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="middle">Digital CiM macro proxy</text>
+<rect x="573" y="240" width="222" height="37" rx="7" fill="#F6F8FB" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="684" y="264" fill="#152238" font-size="15" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="middle">Result slots / rebuild INT32</text>
+<rect x="573" y="289" width="222" height="37" rx="7" fill="#F6F8FB" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="684" y="313" fill="#152238" font-size="15" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="middle">Quantize and write back</text>
+<polyline points="684,179 684,191" fill="none" stroke="#0F766E" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="684,191 688,182 680,182" fill="#0F766E"/>
+<polyline points="684,228 684,240" fill="none" stroke="#0F766E" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="684,240 688,231 680,231" fill="#0F766E"/>
+<polyline points="684,277 684,289" fill="none" stroke="#0F766E" stroke-width="2" stroke-linejoin="round"/>
+<polygon points="684,289 688,280 680,280" fill="#0F766E"/>
+<polyline points="501,159 573,159" fill="none" stroke="#0F766E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="573,159 564,155 564,163" fill="#0F766E"/>
+<polyline points="573,309 530,309 530,228 501,228" fill="none" stroke="#0F766E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="501,228 510,232 510,224" fill="#0F766E"/>
+<polyline points="135,259 135,349 558,349" fill="none" stroke="#2563EB" stroke-width="2.5" stroke-linejoin="round" stroke-dasharray="7 6"/>
+<polygon points="558,349 549,345 549,353" fill="#2563EB"/>
+<polygon points="135,259 131,268 139,268" fill="#2563EB"/>
+<text x="259" y="337" fill="#2563EB" font-size="15" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">START / DONE</text>
+<text x="684" y="350" fill="#526079" font-size="13" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="middle">Reserve a slot before macro launch</text>
+<text x="30" y="411" fill="#152238" font-size="21" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">KWS data in the same SRAM buffers</text>
+<rect x="30" y="429" width="210" height="101" rx="12" fill="#EAF1FF" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="45" y="456" fill="#152238" font-size="21" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">PW (op2)</text>
+<text x="45" y="482" fill="#526079" font-size="16" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">CiM START #1</text>
+<text x="45" y="507" fill="#526079" font-size="15" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Reads A · tensor23</text>
+<rect x="315" y="429" width="210" height="101" rx="12" fill="#E4F3F0" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="330" y="456" fill="#152238" font-size="21" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">DW (op3)</text>
+<text x="330" y="482" fill="#526079" font-size="16" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">RISC-V CPU</text>
+<text x="330" y="507" fill="#526079" font-size="15" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Reads B, writes A</text>
+<rect x="600" y="429" width="210" height="101" rx="12" fill="#EAF1FF" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="615" y="456" fill="#152238" font-size="21" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">PW (op4)</text>
+<text x="615" y="482" fill="#526079" font-size="16" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">CiM START #2</text>
+<text x="615" y="507" fill="#526079" font-size="15" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Writes B · tensor26</text>
+<polyline points="240,485 315,485" fill="none" stroke="#0F766E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="315,485 306,481 306,489" fill="#0F766E"/>
+<text x="277" y="471" fill="#0F766E" font-size="17" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="middle">B</text>
+<polyline points="525,485 600,485" fill="none" stroke="#0F766E" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="600,485 591,481 591,489" fill="#0F766E"/>
+<text x="562" y="471" fill="#0F766E" font-size="17" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="middle">A</text>
+</svg>
