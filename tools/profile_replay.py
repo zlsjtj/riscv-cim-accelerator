@@ -47,10 +47,44 @@ def summarize(path):
         raise ValueError(f"{path}: trace ends before a task completes")
 
 
+def summarize_second_tile0(path):
+    """Measure tile zero after the 7-to-0 transition inside a single START."""
+    last_tile = {}
+    second = {}
+    with path.open(newline="", encoding="utf-8") as stream:
+        for row in csv.DictReader(stream):
+            task, tile, state, cycle = (int(row[key]) for key in ("task", "tile", "state", "cycle"))
+            event = row["event"].strip()
+            if event in ("done", "abort"):
+                record = second.pop(task, None)
+                if event == "done" and record:
+                    yield record
+                last_tile.pop(task, None)
+                continue
+            if last_tile.get(task) == 7 and tile == 0:
+                second[task] = dict(task=task, M=int(row["M"]), layer2_start=cycle, run_start=0,
+                                    run_cycles=0, input_wait=0, first_macro_offset=-1)
+            last_tile[task] = tile
+            if task in second and tile == 0 and state == 3:
+                record = second[task]
+                if not record["run_cycles"]:
+                    record["run_start"] = cycle
+                record["run_cycles"] += 1
+                macro_start = int(row["macro_start"])
+                if macro_start and record["first_macro_offset"] == -1:
+                    record["first_macro_offset"] = cycle - record["run_start"]
+                if int(row["input_wait"]) and not (macro_start or int(row["macro_busy"]) or int(row["raw_full"])):
+                    record["input_wait"] += 1
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("trace", type=Path)
-    records = list(summarize(parser.parse_args().trace))
+    parser.add_argument("--second-tile0", action="store_true",
+                        help="measure the second layer's first tile within a chained task")
+    args = parser.parse_args()
+    profile = summarize_second_tile0 if args.second_tile0 else summarize
+    records = list(profile(args.trace))
     if not records:
         raise ValueError("No completed tasks")
     writer = csv.DictWriter(sys.stdout, list(records[0]), lineterminator="\n")

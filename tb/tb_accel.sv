@@ -99,9 +99,9 @@ module tb_accel #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
     end
     if(dut.spad_read) begin
      if(!filled_words[dut.spad_addr]) $fatal(1,"scratchpad replay before current-task fill");
-     if(INPUT_CACHE==2 && (dut.spad_addr[0] || !filled_words[dut.spad_addr+11'd1]))
+     if(INPUT_CACHE>=2 && (dut.spad_addr[0] || !filled_words[dut.spad_addr+11'd1]))
       $fatal(1,"banked replay requires an aligned pair filled by the current task");
-     cache_reads+=INPUT_CACHE==2 ? 2 : 1;
+     cache_reads+=INPUT_CACHE>=2 ? 2 : 1;
     end
    end
    if(held && (!mem_valid || {mem_write,mem_addr,mem_wdata,mem_wstrb}!==held_request))
@@ -244,7 +244,7 @@ module tb_accel #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
     $fatal(1,"cache control survived partial fill reset");
    $display("PASS RTL reset during partial scratchpad fill");
   end
-  if(INPUT_CACHE==2) begin
+  if(INPUT_CACHE>=2) begin
    // Earlier tile writes commit normally. Reset before consuming the last replay pair.
    abort_replay=1;
    configure(1,1);wr('h00,1);

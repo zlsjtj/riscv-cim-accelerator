@@ -80,8 +80,10 @@ int cim_submit(const cim_device *d, const cim_task *t) {
     return CIM_OK;
 }
 
-int cim_submit_pair(const cim_device *d, const cim_task *first, const cim_task *second) {
-    if (!device_valid(d) || !ranges_valid(first) || !ranges_valid(second) ||
+int cim_submit_pair_with_options(const cim_device *d, const cim_task *first,
+                                 const cim_task *second, uint32_t options) {
+    if ((options & ~(uint32_t)CIM_RETAIN) || !device_valid(d) ||
+        !ranges_valid(first) || !ranges_valid(second) ||
         first->y_base != second->a_base || first->m != second->m || first->mode != second->mode)
         return CIM_EINVAL;
     if (d->read32(d->context, CIM_STATUS) & CIM_BUSY) return CIM_EBUSY;
@@ -90,8 +92,12 @@ int cim_submit_pair(const cim_device *d, const cim_task *first, const cim_task *
     d->write32(d->context, CIM_P2_BASE, second->p_base);
     d->write32(d->context, CIM_Y2_BASE, second->y_base);
     d->prepare(d->context);
-    d->write32(d->context, CIM_CONTROL, CIM_START | CIM_CHAIN);
+    d->write32(d->context, CIM_CONTROL, CIM_START | CIM_CHAIN | options);
     return CIM_OK;
+}
+
+int cim_submit_pair(const cim_device *d, const cim_task *first, const cim_task *second) {
+    return cim_submit_pair_with_options(d, first, second, 0);
 }
 
 int cim_wait(const cim_device *d, uint32_t limit, uint32_t *cycles) {

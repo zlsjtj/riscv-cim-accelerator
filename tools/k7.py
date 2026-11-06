@@ -58,13 +58,13 @@ def prepared_hashes():
                                                "cpu_include/myCPU_m_ext.sv")}
 
 
-def check_prepared(source, two_layer):
+def check_prepared(source, two_layer, retain):
     metadata = OUT / "build_metadata.json"
     if not metadata.is_file():
         raise ValueError("Run k7.py prepare with the same --out and --cpu-source first")
     record = json.loads(metadata.read_text(encoding="utf-8"))
     if (record.get("cpu_sources") != cpu_hashes(source) or record.get("prepared_files") != prepared_hashes()
-            or record.get("two_layer", False) != two_layer):
+            or record.get("two_layer", False) != two_layer or record.get("retain", False) != retain):
         raise ValueError("CPU sources or generated files differ from prepare. Run k7.py prepare again")
 
 
@@ -82,7 +82,7 @@ def stage_m_unit(source):
             "staged_sha256": sha(patched), "change": "M-unit reset is sampled on clk"}
 
 
-def prepare(source, tools, two_layer):
+def prepare(source, tools, two_layer, retain):
     sources = cpu_hashes(source)
     cases = generate("real")
     case = next((case for case in cases if case["M"] == 125 and "activation_sha256" in case), None)
@@ -99,6 +99,8 @@ def prepare(source, tools, two_layer):
     copy = tools / "riscv-none-elf-objcopy.exe"
     run([cc, "--version"], "gcc_version.log")
     defines = ["-DCIM_TWO_LAYER"] if two_layer else []
+    if retain:
+        defines.append("-DCIM_RETAIN_BENCHMARK")
     run([cc, "-march=rv32im", "-mabi=ilp32", "-Os", "-ffreestanding", *defines,
          "-fno-builtin", "-msmall-data-limit=0", "-mno-relax",
          "-ffunction-sections", "-fdata-sections", "-nostdlib",
@@ -129,6 +131,7 @@ def prepare(source, tools, two_layer):
         "fixture_case": idx, "activation_sha256": case["activation_sha256"],
         "golden_sha256": hashlib.sha256(golden).hexdigest(),
         "two_layer": two_layer,
+        "retain": retain,
         "m_unit_reset_patch": m_unit,
         "fpga_part": "xc7k325tffg900-2", "ref_clock_hz": 200000000, "core_clock_hz": 50000000,
     }
@@ -152,7 +155,7 @@ def parse_results(output):
     return rows
 
 
-def parse_chain_results(output):
+def parse_chain_results(output, retain=False):
     rows = []
     for line in output.splitlines():
         match = re.fullmatch(r"(?:# )?CHAIN_RESULT ((?:[0-9a-f]{8} ){6}[0-9a-f]{8})", line.strip())
@@ -162,7 +165,7 @@ def parse_chain_results(output):
                 raise ValueError(f"Invalid result: {line}")
             rows.append(dict(method=method, M=m, cycles=cycles, bytes_per_layer=count,
                              intermediate_mismatches=mid_bad, final_mismatches=out_bad))
-    expected = [(method, m) for m in (1, 125) for method in range(3)]
+    expected = [(method, m) for m in (1, 125) for method in range(4 if retain else 3)]
     if "CIM_PASS" not in output.split() or [(row["method"], row["M"]) for row in rows] != expected:
         raise RuntimeError("Incomplete two-layer result sequence")
     return rows
@@ -211,8 +214,9 @@ def simulate(source, questa, trace_blocks, profile_tasks, turn, cache, two_layer
     generics = [f"-gTURNAROUND={turn}", f"-gINPUT_CACHE={cache}"]
     control_test = "+TEST_CHAIN_CONTROL" if two_layer else "+TEST_START_COUNTER"
     control_pass = "PASS chain control" if two_layer else "PASS accepted START"
+    retain_args = ["+TEST_RETAIN"] if cache == 3 else []
     counter = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", *generics, "tb_rv_system",
-                   control_test, "-do",
+                   control_test, *retain_args, "-do",
                    "onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0"],
                   "start_counter.log")
     if control_pass not in counter:
@@ -224,11 +228,11 @@ def simulate(source, questa, trace_blocks, profile_tasks, turn, cache, two_layer
         trace_args.append("+PROFILE_TASKS")
     if two_layer:
         trace_args.append("+TEST_CHAIN")
-    output = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", *generics, "tb_rv_system", *trace_args, "-do",
+    output = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", *generics, "tb_rv_system", *trace_args, *retain_args, "-do",
                   "onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0"],
                  "soc_simulation.log")
     if two_layer:
-        (OUT / "soc_chain_results.json").write_text(json.dumps(parse_chain_results(output), indent=2), encoding="utf-8")
+        (OUT / "soc_chain_results.json").write_text(json.dumps(parse_chain_results(output, cache == 3), indent=2), encoding="utf-8")
         return
     (OUT / "soc_results.json").write_text(json.dumps(parse_results(output), indent=2), encoding="utf-8")
     (OUT / "soc_reset_results.json").write_text(json.dumps(parse_resets(output), indent=2), encoding="utf-8")
@@ -268,7 +272,7 @@ def program(vivado, target, port, archive, variant, usr_access, two_layer):
     result = {"jtag_serial": target, "uart_port": port, "uart_baud": 115200,
               "variant": variant, "bit_sha256": sha(bit), "usr_access": usr_access}
     if two_layer:
-        result["chain"] = parse_chain_results(output)
+        result["chain"] = parse_chain_results(output, variant == "banked-retain")
     else:
         result.update(resets=parse_resets(output), tasks=parse_results(output), software=parse_cpu_results(output))
     (OUT / "board_results.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
@@ -291,8 +295,11 @@ def main():
     parser.add_argument("--jtag")
     parser.add_argument("--port")
     args = parser.parse_args()
-    if args.two_layer and args.variant != "banked":
-        parser.error("--two-layer requires the banked configuration")
+    retain = args.variant == "banked-retain"
+    if args.two_layer and args.variant not in ("banked", "banked-retain"):
+        parser.error("--two-layer requires banked or banked-retain")
+    if retain and not args.two_layer:
+        parser.error("banked-retain requires --two-layer")
     if args.bitstream and args.step != "program":
         parser.error("--bitstream requires program")
     if args.trace_blocks and args.step != "sim":
@@ -307,8 +314,8 @@ def main():
             parser.error("prepare requires --gcc-bin or riscv-none-elf-gcc.exe on PATH")
         args.gcc_bin = Path(gcc).parent
     turn, cache, usr_access = VARIANTS[args.variant]
-    default_out = "k7_two_layer" if args.two_layer else f"k7_matrix_{args.variant}"
-    if args.two_layer:
+    default_out = ("k7_interlayer_cache" if retain else "k7_two_layer") if args.two_layer else f"k7_matrix_{args.variant}"
+    if args.two_layer and not retain:
         usr_access = "43494d45"
     OUT = (args.out or ROOT / "build" / default_out).resolve()
     source = args.cpu_source.resolve() if args.cpu_source else None
@@ -316,9 +323,9 @@ def main():
     questa = Path(os.environ.get("QUESTA_BIN", "E:/questasim64_2024.1/win64"))
     OUT.mkdir(parents=True, exist_ok=True)
     if args.step in ("sim", "impl"):
-        check_prepared(source, args.two_layer)
+        check_prepared(source, args.two_layer, retain)
     if args.step == "prepare":
-        prepare(source, args.gcc_bin.resolve(), args.two_layer)
+        prepare(source, args.gcc_bin.resolve(), args.two_layer, retain)
     elif args.step == "sim":
         simulate(source, questa, args.trace_blocks, args.profile_tasks, turn, cache, args.two_layer)
     elif args.step == "impl":

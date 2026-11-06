@@ -49,6 +49,9 @@ set spad_brams [llength [get_cells -quiet -hier -filter {REF_NAME == RAMB36E1 &&
 set next_addr_ffs [llength [get_cells -quiet -hier -filter {REF_NAME =~ FD* && NAME =~ *rd_next_addr_reg*}]]
 puts "K7_STRUCTURES SPAD_RAMB36=$spad_brams NEXT_ADDR_FFS=$next_addr_ffs"
 if {$spad_brams != 2*($cache != 0) || ($next_addr_ffs > 0) != $turn} {error "Variant structures disagree with the configuration"}
+set retained_brams [llength [get_cells -quiet -hier -filter {REF_NAME == RAMB36E1 && NAME =~ *interlayer_ram*}]]
+puts "K7_INTERLAYER_RAMB36=$retained_brams"
+if {$retained_brams != 2*($cache == 3)} {error "Unexpected interlayer BRAM inference"}
 set_property BITSTREAM.CONFIG.USERID 0x$usr_access [current_design]
 set_property BITSTREAM.CONFIG.USR_ACCESS 0x$usr_access [current_design]
 write_bitstream -force cim_k7.bit

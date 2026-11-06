@@ -2,7 +2,7 @@
 // Original portable digital peripheral. Local reads return >=1 clock after acceptance.
 module cim_accel #(
  parameter bit TURNAROUND=1,
- parameter int INPUT_CACHE=0 // 0: bypass, 1: word replay, 2: paired replay
+ parameter int INPUT_CACHE=0 // 0: bypass, 1: word replay, 2: paired replay, 3: retain layer output
 ) (
  input logic clk, rst_n,
  input logic cfg_valid, cfg_write,
@@ -19,14 +19,15 @@ module cim_accel #(
 );
  localparam IDLE=0, PARAM=1, WEIGHT=2, RUN=3;
  localparam RD_PARAM=0, RD_WEIGHT=1, RD_INPUT=2;
- localparam BANKED_REPLAY=INPUT_CACHE==2;
+ localparam BANKED_REPLAY=INPUT_CACHE>=2;
+ localparam INTERLAYER_CACHE=INPUT_CACHE==3;
  localparam [3:0] REPLAY_LAST=BANKED_REPLAY ? 4'd14 : 4'd15;
  logic [1:0] state;
  logic busy, done, error;
  logic [31:0] shadow_m, shadow_a, shadow_w, shadow_p, shadow_y, shadow_mode;
  logic [31:0] a_base,w_base,p_base,y_base;
  logic [31:0] shadow_w2,shadow_p2,shadow_y2,w2_base,p2_base,y2_base;
- logic chain_pending;
+ logic chain_pending, retain_intermediate;
  logic [7:0] task_m, next_p;
  logic mode;
  logic [2:0] tile;
@@ -54,6 +55,7 @@ module cim_accel #(
  logic spad_active, spad_ctx, spad_rvalid, spad_result_ctx;
  logic [3:0] spad_index, spad_result_index;
  logic [31:0] spad_rdata, spad_rdata_hi;
+ logic [31:0] intermediate_low, intermediate_high;
  logic signed [31:0] partial[0:1][0:7];
  logic [63:0] output_bytes[0:1];
  logic [3:0] quant_index[0:1];
@@ -77,7 +79,8 @@ module cim_accel #(
  assign start_accepted = rst_n && cfg_valid && cfg_write && cfg_addr==8'h00 &&
                          cfg_wdata[0] && !busy && shadow_m>=1 && shadow_m<=125 &&
                          shadow_mode<=1 && ((shadow_a|shadow_w|shadow_p|shadow_y)&32'h3)==0 &&
-                         (!cfg_wdata[2] || ((shadow_w2|shadow_p2|shadow_y2)&32'h3)==0);
+                         (!cfg_wdata[2] || ((shadow_w2|shadow_p2|shadow_y2)&32'h3)==0) &&
+                         (!cfg_wdata[3] || (INTERLAYER_CACHE && cfg_wdata[2]));
 
  // A returning input word releases the single read credit on this edge.
  // Only offer the next word of the same context, with ready writes taking
@@ -87,6 +90,10 @@ module cim_accel #(
                      rd_kind==RD_INPUT && rd_index<15 && output_ready==0;
  wire read_accept = mem_valid && mem_ready && !mem_write;
  wire external_input = read_return && rd_kind==RD_INPUT;
+ wire replay_intermediate = INTERLAYER_CACHE && retain_intermediate && !chain_pending;
+ wire retain_write = INTERLAYER_CACHE && rst_n && retain_intermediate && chain_pending &&
+                     mem_valid && mem_ready && mem_write;
+ wire [10:0] retain_addr = {position[req_ctx][6:0], tile, req_last};
  wire spad_write = INPUT_CACHE && rst_n && external_input && tile==0;
  wire spad_read = INPUT_CACHE && rst_n && spad_active;
  wire [10:0] spad_addr = spad_write ? {position[rd_ctx][6:0], rd_index[3:0]} :
@@ -94,7 +101,8 @@ module cim_accel #(
  wire input_pair = BANKED_REPLAY && spad_rvalid;
  wire input_ctx = spad_rvalid ? spad_result_ctx : rd_ctx;
  wire [3:0] input_index = spad_rvalid ? spad_result_index : rd_index[3:0];
- wire [31:0] input_data = spad_rvalid ? spad_rdata : mem_rdata;
+ wire [31:0] input_data = spad_rvalid ? (replay_intermediate ? intermediate_low : spad_rdata) : mem_rdata;
+ wire [31:0] input_data_hi = replay_intermediate ? intermediate_high : spad_rdata_hi;
  wire [3:0] paired_index = input_index | 4'd1;
  assign mem_valid = request_valid || input_follow;
  assign mem_addr = input_follow ? rd_next_addr : request_addr;
@@ -105,6 +113,24 @@ module cim_accel #(
  requant quant_unit(.clk(clk),.enable(q_valid),.acc(q_acc),
   .multiplier(q_mul),.shift(q_shift),.value(q_value));
 
+ if(INTERLAYER_CACHE) begin : interlayer
+  // Store only accepted SRAM writes. The accepted request owns row and word
+  // through stalls. Stage two starts after the final write drains.
+  for(genvar bank=0;bank<2;bank++) begin : lane
+   (* ram_style = "block" *) logic [31:0] interlayer_ram[0:1023];
+   logic [31:0] read_data;
+   wire [9:0] address = retain_write ? retain_addr[10:1] : spad_addr[10:1];
+   always_ff @(posedge clk) begin
+    if(retain_write && retain_addr[0]==(bank==1)) interlayer_ram[address]<=mem_wdata;
+    else if(spad_read && replay_intermediate) read_data<=interlayer_ram[address];
+   end
+   if(bank==0) assign intermediate_low=read_data;
+   else assign intermediate_high=read_data;
+  end
+ end else begin : no_interlayer
+  assign {intermediate_low,intermediate_high}='0;
+ end
+
  if(INPUT_CACHE) begin : cache
   // The first tile overwrites all words used by a task before any replay.
   // The response uses the old external tag, including with read turnaround.
@@ -114,7 +140,7 @@ module cim_accel #(
     logic [31:0] read_data;
     always_ff @(posedge clk) begin
      if(spad_write && spad_addr[0]==(bank==1)) input_spad[spad_addr[10:1]]<=mem_rdata;
-     else if(spad_read) read_data<=input_spad[spad_addr[10:1]];
+     else if(spad_read && !replay_intermediate) read_data<=input_spad[spad_addr[10:1]];
     end
     if(bank==0) assign spad_rdata=read_data;
     else assign spad_rdata_hi=read_data;
@@ -138,7 +164,7 @@ module cim_accel #(
      spad_result_index<=spad_index;
      spad_index<=spad_index+(BANKED_REPLAY ? 4'd2 : 4'd1);
      if(spad_index==REPLAY_LAST) spad_active<=0;
-    end else if(state==RUN && tile!=0) begin
+    end else if(state==RUN && (tile!=0 || replay_intermediate)) begin
      // Exclude the context of the last word still in the return stage.
      if(live[0] && !input_ready[0] && !(spad_rvalid && !spad_result_ctx)) begin
       spad_active<=1;spad_ctx<=0;spad_index<=0;
@@ -199,7 +225,8 @@ module cim_accel #(
   if(!rst_n) begin
    state<=IDLE; busy<=0;done<=0;error<=0;
    shadow_m<=1;shadow_a<=0;shadow_w<=0;shadow_p<=0;shadow_y<=0;shadow_mode<=0;
-   shadow_w2<=0;shadow_p2<=0;shadow_y2<=0;w2_base<=0;p2_base<=0;y2_base<=0;chain_pending<=0;
+   shadow_w2<=0;shadow_p2<=0;shadow_y2<=0;w2_base<=0;p2_base<=0;y2_base<=0;
+   chain_pending<=0;retain_intermediate<=0;
    a_base<=0;w_base<=0;p_base<=0;y_base<=0;task_m<=0;mode<=0;tile<=0;next_p<=0;
    cycles<=0;mem_wait<=0;macro_cycles<=0;
    request_valid<=0;mem_write<=0;request_addr<=0;mem_wdata<=0;mem_wstrb<=0;
@@ -244,6 +271,7 @@ module cim_accel #(
         task_m<=shadow_m[7:0];a_base<=shadow_a;w_base<=shadow_w;
         p_base<=shadow_p;y_base<=shadow_y;mode<=shadow_mode[0];
         chain_pending<=cfg_wdata[2];
+        retain_intermediate<=cfg_wdata[3];
         w2_base<=shadow_w2;p2_base<=shadow_p2;y2_base<=shadow_y2;
         tile<=0;next_p<=0;load_word<=0;cycles<=0;mem_wait<=0;macro_cycles<=0;
         live<=0;input_ready<=0;issued_low<=0;issued_high<=0;recon_done<=0;output_ready<=0;
@@ -312,8 +340,8 @@ module cim_accel #(
      input_high[input_ctx][(input_index*4+k)*4 +:4]<={~input_data[k*8+7],input_data[k*8+4 +:3]};
     end
     if(input_pair) for(k=0;k<4;k=k+1) begin
-     input_low[input_ctx][(paired_index*4+k)*4 +:4]<=spad_rdata_hi[k*8 +:4];
-     input_high[input_ctx][(paired_index*4+k)*4 +:4]<={~spad_rdata_hi[7+k*8],spad_rdata_hi[4+k*8 +:3]};
+     input_low[input_ctx][(paired_index*4+k)*4 +:4]<=input_data_hi[k*8 +:4];
+     input_high[input_ctx][(paired_index*4+k)*4 +:4]<={~input_data_hi[7+k*8],input_data_hi[4+k*8 +:3]};
     end
     fill_word[input_ctx]<=fill_word[input_ctx]+(input_pair ? 5'd2 : 5'd1);
     if(input_index==(input_pair ? 4'd14 : 4'd15)) input_ready[input_ctx]<=1;
@@ -340,7 +368,7 @@ module cim_accel #(
        mem_wdata<=output_bytes[1][write_index[1]*32 +:32];
       end
       request_valid<=1;mem_write<=1;mem_wstrb<=4'hf;
-     end else if((!INPUT_CACHE || tile==0) &&
+     end else if((!INPUT_CACHE || (tile==0 && !replay_intermediate)) &&
                  ((live[0] && !input_ready[0]) || (live[1] && !input_ready[1]))) begin
       request_valid<=1;mem_write<=0;mem_wstrb<=0;req_kind<=RD_INPUT;
       if(live[0] && !input_ready[0]) begin
@@ -402,12 +430,12 @@ module cim_accel #(
        !spad_active && !spad_rvalid) begin
      if(tile!=7) begin tile<=tile+1;load_word<=0;state<=PARAM;next_p<=0;end
      else if(chain_pending) begin
-      // Every intermediate write has committed. Tile zero refills the cache
-      // from the intermediate SRAM exactly as a fresh single-layer task.
+      // Every intermediate write has committed. Tile zero either reads
+      // the retained words or fills the input cache from shared SRAM.
       chain_pending<=0;
       a_base<=y_base;w_base<=w2_base;p_base<=p2_base;y_base<=y2_base;
       tile<=0;load_word<=0;state<=PARAM;next_p<=0;
-     end else begin busy<=0;done<=1;state<=IDLE;end
+     end else begin busy<=0;done<=1;state<=IDLE;retain_intermediate<=0;end
     end
    end
   end

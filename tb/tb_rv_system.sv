@@ -17,12 +17,15 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
     );
 
     logic counter_test;
-    logic chain_test, chain_control_test;
+    logic chain_test, chain_control_test, retain_test;
     int chain_windows = 0, chain_starts, chain_dones, chain_mid_writes, chain_final_writes;
-    int chain_core_cycles;
+    int chain_core_cycles, chain_mid_reads, chain_shared_reads, chain_copies;
+    logic [2047:0] chain_copied;
     logic chain_final_read;
-    wire [31:0] chain_words = chain_windows < 3 ? 32'd16 : 32'd2000;
-    wire [31:0] chain_method = chain_windows % 3;
+    wire [31:0] chain_methods = retain_test ? 4 : 3;
+    wire [31:0] chain_words = chain_windows < chain_methods ? 32'd16 : 32'd2000;
+    wire [31:0] chain_method = chain_windows % chain_methods;
+    wire [31:0] chain_expected_starts = chain_method == 0 ? 2 : chain_method == 2 ? 0 : 1;
     logic [31:0] test_addr, test_data;
     logic test_wen;
     task write_test_cfg(input [7:0] addr, input [31:0] data);
@@ -84,23 +87,38 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
         if (dut.accel.busy || !dut.accel.error || dut.committed_writes)
             $fatal(1,"Unaligned second-layer address was accepted");
         write_test_cfg('h2c,'h80104000);
-        write_test_cfg('h00,5);
+        write_test_cfg('h00,9);
+        if (dut.accel.busy || !dut.accel.error) $fatal(1,"RETAIN without CHAIN was accepted");
+        write_test_cfg('h00,retain_test ? 13 : 5);
         if (!dut.accel.busy || dut.accel.error) $fatal(1,"Legal chain START failed");
         write_test_cfg('h2c,'h80104004);
         write_test_cfg('h30,'h80105404);
         write_test_cfg('h34,'h80108004);
+        if (retain_test) begin
+            wait(dut.mem_valid && dut.mem_write);
+            @(negedge clk);
+            force dut.mem_ready=0;
+            repeat (3) begin
+                @(posedge clk);
+                if (!dut.mem_valid || !dut.mem_write || dut.accel.retain_write)
+                    $fatal(1,"Retained copy before SRAM acceptance");
+            end
+            @(negedge clk);
+            release dut.mem_ready;
+        end
         wait(dut.accel.a_base == 'h80106000);
         if (dut.accel.w_base != 'h80104000 || dut.accel.p_base != 'h80105400 ||
             dut.accel.y_base != 'h80108000 || dut.committed_writes != 16 ||
             !dut.accel.busy || dut.accel.done)
             $fatal(1,"Chain handoff consumed shadow configuration or exposed early DONE");
-        wait(dut.mem_rvalid && dut.accel.rd_pending);
+        if (retain_test) wait(dut.accel.spad_rvalid && dut.accel.replay_intermediate);
+        else wait(dut.mem_rvalid && dut.accel.rd_pending);
         @(negedge clk);
         rst_n = 0;
         @(negedge clk);
         if (dut.accel.busy || dut.accel.done || dut.accel.error ||
             dut.accel.chain_pending || dut.accel.rd_pending || dut.mem_valid || dut.mem_rvalid ||
-            dut.committed_writes)
+            dut.accel.retain_intermediate || dut.accel.spad_rvalid || dut.committed_writes)
             $fatal(1,"Chain survived reset in layer two");
         $display("PASS chain control alignment, shadow snapshot, commit and reset");
         $finish;
@@ -171,7 +189,7 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
         end else begin
             if (dut.cim_access && !dut.mem_write) shared_reads++;
             if (dut.cim_access && dut.mem_write) shared_writes++;
-            if (dut.accel.spad_read) local_reads += INPUT_CACHE==2 ? 2 : 1;
+            if (dut.accel.spad_read) local_reads += INPUT_CACHE>=2 ? 2 : 1;
             if (dut.accel.spad_write) local_writes++;
             if (traffic_file && dut.accel.done && !was_done)
                 $fdisplay(traffic_file, "%0d,%0d,%0d,%0d,%0d,%0d,%0d", dut.accel.mode,
@@ -183,9 +201,25 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
                 chain_dones++;
                 chain_core_cycles+=dut.accel.cycles;
             end
-            if (dut.cim_access && !dut.mem_write && dut.b_word >= 14'h1800 &&
-                dut.b_word < 14'h1800 + chain_words && chain_mid_writes != chain_words)
-                $fatal(1, "Accelerator consumed an uncommitted intermediate");
+            if (dut.cim_access && !dut.mem_write) begin
+                chain_shared_reads++;
+                if (dut.b_word >= 14'h1800 && dut.b_word < 14'h1800 + chain_words) begin
+                    if (chain_mid_writes != chain_words) $fatal(1, "Accelerator consumed an uncommitted intermediate");
+                    chain_mid_reads++;
+                end
+            end
+            if (dut.accel.retain_write) begin
+                if (chain_method != 3 || !dut.cim_access || !dut.mem_write ||
+                    int'(dut.accel.retain_addr) != int'(dut.b_word)-32'h1800 ||
+                    dut.accel.retain_addr >= chain_words || chain_copied[dut.accel.retain_addr])
+                    $fatal(1, "Wrong retained address or duplicate SRAM commit");
+                chain_copied[dut.accel.retain_addr]=1;
+                chain_copies++;
+            end
+            if (dut.accel.spad_read && dut.accel.replay_intermediate &&
+                (chain_copies != chain_words || !chain_copied[dut.accel.spad_addr] ||
+                 !chain_copied[dut.accel.spad_addr+11'd1]))
+                $fatal(1, "Retained replay before completing the current intermediate");
             if (dut.cpu_store || (dut.cim_access && dut.mem_write)) begin
                 if (((dut.b_word >= 14'h1800 && dut.b_word < 14'h1800 + chain_words) ||
                      (dut.b_word >= 14'h2000 && dut.b_word < 14'h2000 + chain_words)) &&
@@ -211,13 +245,18 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
             if (chain_test && dut.cpu_wdata[0]) begin
                 chain_starts=0; chain_dones=0; chain_core_cycles=0;
                 chain_mid_writes=0; chain_final_writes=0; chain_final_read=0;
+                chain_mid_reads=0; chain_shared_reads=0; chain_copies=0; chain_copied='0;
             end else if (chain_test) begin
                 if (!dut.sw_active || chain_mid_writes != chain_words || chain_final_writes != chain_words ||
-                    chain_starts != 2-chain_method || chain_dones != chain_starts || !chain_final_read)
+                    chain_starts != chain_expected_starts || chain_dones != chain_starts || !chain_final_read ||
+                    chain_mid_reads != (chain_method < 2 ? chain_words : 0) ||
+                    chain_copies != (chain_method == 3 ? chain_words : 0) ||
+                    chain_shared_reads != (chain_method == 2 ? 0 : 2432 + chain_words + chain_mid_reads))
                     $fatal(1, "Incomplete chain timer window method=%0d starts=%0d done=%0d mid=%0d final=%0d read=%0d",
                            chain_method, chain_starts, chain_dones, chain_mid_writes, chain_final_writes, chain_final_read);
-                $display("CHAIN_WINDOW method=%0d starts=%0d done=%0d mid_words=%0d final_words=%0d core_cycles=%0d",
-                         chain_method, chain_starts, chain_dones, chain_mid_writes, chain_final_writes, chain_core_cycles);
+                $display("CHAIN_WINDOW method=%0d starts=%0d done=%0d mid_words=%0d final_words=%0d core_cycles=%0d shared_reads=%0d mid_reads=%0d retained_words=%0d",
+                         chain_method, chain_starts, chain_dones, chain_mid_writes, chain_final_writes, chain_core_cycles,
+                         chain_shared_reads, chain_mid_reads, chain_copies);
                 chain_windows++;
             end else if (dut.cpu_wdata[0]) begin
                 software_output_words=0;
@@ -248,7 +287,7 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
                 $display("%s", line);
                 if (line == "CIM_PASS") begin
                     if (chain_test) begin
-                        if (chain_windows != 6) $fatal(1, "Expected six complete chain timer windows");
+                        if (chain_windows != 2*chain_methods) $fatal(1, "Missing complete chain timer windows");
                     end else begin
                         if (reset_count != 2) $fatal(1, "Expected two warm resets");
                         if (software_runs != 2) $fatal(1, "Expected two complete software timer windows");
@@ -267,6 +306,7 @@ module tb_rv_system #(parameter bit TURNAROUND=1, parameter int INPUT_CACHE=0);
         counter_test = $test$plusargs("TEST_START_COUNTER");
         chain_test = $test$plusargs("TEST_CHAIN");
         chain_control_test = $test$plusargs("TEST_CHAIN_CONTROL");
+        retain_test = $test$plusargs("TEST_RETAIN");
         if (!counter_test && !chain_control_test) begin
             traffic_file = $fopen("traffic.csv", "w");
             if (!traffic_file) $fatal(1, "Cannot open traffic.csv");

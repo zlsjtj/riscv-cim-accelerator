@@ -105,14 +105,23 @@ static int run_pair(const cim_device *dev, uint32_t m, unsigned kind) {
     // Replace recent CPU stores to the outputs with unrelated stores before START.
     for (uint32_t offset = 0; offset < 256; offset += 4)
         write_word(CHAIN_SCRATCH + offset, offset);
+#ifdef CIM_RETAIN_BENCHMARK
+    // Choose the option before timing. Both chained paths share one call site.
+    uint32_t options = kind == 3 ? CIM_RETAIN : 0;
+    __asm__ volatile ("" : "+r"(options) :: "memory");
+#endif
     visibility(0);
     write_word(SW_TIMER, 1);
     int status = CIM_OK;
     if (kind == 2) {
         compute_layer(&first);
         compute_layer(&second);
-    } else if (kind == 1) {
+    } else if (kind & 1u) {
+#ifdef CIM_RETAIN_BENCHMARK
+        status = cim_submit_pair_with_options(dev, &first, &second, options);
+#else
         status = cim_submit_pair(dev, &first, &second);
+#endif
         if (status == CIM_OK) status = cim_wait(dev, 1000000, 0);
     } else {
         status = cim_submit(dev, &first);
@@ -140,8 +149,13 @@ static int run_pair(const cim_device *dev, uint32_t m, unsigned kind) {
 int main(void) {
     static const cim_device dev = {0, cfg_read, cfg_write, visibility, visibility};
     print("CIM_BOOT RV32IM two-layer tensor23\n");
+#ifdef CIM_RETAIN_BENCHMARK
+    const unsigned methods = 4;
+#else
+    const unsigned methods = 3;
+#endif
     for (uint32_t m = 1; m <= 125; m += 124)
-        for (unsigned kind = 0; kind < 3; ++kind)
+        for (unsigned kind = 0; kind < methods; ++kind)
             if (run_pair(&dev, m, kind)) {
                 print("CIM_FAIL\n");
                 return 1;

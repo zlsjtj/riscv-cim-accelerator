@@ -11,7 +11,7 @@ enum {
     CIM_MEM_WAIT = 0x24, CIM_MACRO_BUSY = 0x28,
     CIM_W2_BASE = 0x2c, CIM_P2_BASE = 0x30, CIM_Y2_BASE = 0x34
 };
-enum { CIM_START = 1, CIM_ACK_DONE = 2, CIM_CHAIN = 4 };
+enum { CIM_START = 1, CIM_ACK_DONE = 2, CIM_CHAIN = 4, CIM_RETAIN = 8 };
 enum { CIM_BUSY = 1, CIM_DONE = 2, CIM_ERROR = 4 };
 enum { CIM_OK = 0, CIM_EINVAL = -1, CIM_EBUSY = -2,
        CIM_EHW = -3, CIM_ETIMEOUT = -4 };
@@ -43,6 +43,8 @@ void cim_pack_params(uint8_t packed[768], const cim_param params[64]);
 int cim_submit(const cim_device *device, const cim_task *task);
 /* Both layers share M and MODE. The first output is the second input. */
 int cim_submit_pair(const cim_device *device, const cim_task *first, const cim_task *second);
+int cim_submit_pair_with_options(const cim_device *device, const cim_task *first,
+                                 const cim_task *second, uint32_t options);
 int cim_wait(const cim_device *device, uint32_t poll_limit, uint32_t *cycles);
 void cim_ack(const cim_device *device);
 
