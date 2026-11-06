@@ -1,0 +1,75 @@
+{
+  "handoff_zip_sha256": "aa3b11c9d17cded7c606f2720288af9391f23308a03cd9d675351fb2ece87b65",
+  "original_verilator": "5.032",
+  "original_firmware_sha256": "75843e6301898ac03e0aa922afefd272307acb387aba28a68fd06806a03c86b4",
+  "pinned_ibex": "2373e5dadcfc4f56672962fa242f6a051acc9aca",
+  "original_source_commit": "c0637660ad059b52d851ec56f027f3c5a24b482b",
+  "original_source_sha256": {
+    "spike_main.c": "f3a7a3a738719bdece50be7f3612042e7a4345f6f59da77715e1182c480ab96c",
+    "spike_ibex.ld": "e04dbc617f42dafbb1b4ea31c8a298430d8564aad1dd9f6d36efc3096fafce28",
+    "run_spike.py": "9ac1340dbd71ea750101bcebc53618672946d24e20b62c7471f54407e3181c59"
+  },
+  "reproduced_first_sample_and_parameters": true,
+  "runs": [
+    {
+      "run": "replayed",
+      "gcc": "12.2.0",
+      "verilator": "5.020",
+      "firmware_sha256": "75843e6301898ac03e0aa922afefd272307acb387aba28a68fd06806a03c86b4",
+      "modes": [
+        {
+          "mode": "hybrid",
+          "total_cycles": 1098468,
+          "pw1_cycles": 23951,
+          "dw_cycles": 1050571,
+          "pw2_cycles": 23946,
+          "pw1_core_cycles": 23431,
+          "pw2_core_cycles": 23429
+        },
+        {
+          "mode": "cpu_only",
+          "total_cycles": 8824807,
+          "pw1_cycles": 3886546,
+          "dw_cycles": 1050573,
+          "pw2_cycles": 3887688,
+          "pw1_core_cycles": 0,
+          "pw2_core_cycles": 0
+        }
+      ],
+      "raw": [
+        "SPIKE_RESULT 00000000 0010c2e4 00005d8f 001007cb 00005d8a 00005b87 00005b85 00000000 00000000",
+        "SPIKE_RESULT 00000001 0086a7e7 003b4dd2 001007cd 003b5248 00000000 00000000 00000000 00000000"
+      ]
+    },
+    {
+      "run": "gcc13-control",
+      "gcc": "13.2.0",
+      "verilator": "5.020",
+      "firmware_sha256": "201cdc57ac8ad0153c2afd8b3220f05214bbab5797e56b9ab88f76e720e7b670",
+      "modes": [
+        {
+          "mode": "hybrid",
+          "total_cycles": 1202613,
+          "pw1_cycles": 23953,
+          "dw_cycles": 1154703,
+          "pw2_cycles": 23957,
+          "pw1_core_cycles": 23430,
+          "pw2_core_cycles": 23430
+        },
+        {
+          "mode": "cpu_only",
+          "total_cycles": 8940961,
+          "pw1_cycles": 3892555,
+          "dw_cycles": 1154703,
+          "pw2_cycles": 3893703,
+          "pw1_core_cycles": 0,
+          "pw2_core_cycles": 0
+        }
+      ],
+      "raw": [
+        "SPIKE_RESULT 00000000 001259b5 00005d91 00119e8f 00005d95 00005b86 00005b86 00000000 00000000",
+        "SPIKE_RESULT 00000001 00886da1 003b654b 00119e8f 003b69c7 00000000 00000000 00000000 00000000"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "modes": [
+    {
+      "case": 0,
+      "sample": "tst_000000_Stop_7.bin",
+      "mode": "hybrid",
+      "total_cycles": 1078399,
+      "pw1_cycles": 23964,
+      "dw_cycles": 1030464,
+      "pw2_cycles": 23971,
+      "pw1_core_cycles": 23427,
+      "pw2_core_cycles": 23427,
+      "compared_bytes": 8000,
+      "mismatches": 0
+    },
+    {
+      "case": 0,
+      "sample": "tst_000000_Stop_7.bin",
+      "mode": "cpu_only",
+      "total_cycles": 8816765,
+      "pw1_cycles": 3892575,
+      "dw_cycles": 1030464,
+      "pw2_cycles": 3893726,
+      "pw1_core_cycles": 0,
+      "pw2_core_cycles": 0,
+      "compared_bytes": 8000,
+      "mismatches": 0
+    },
+    {
+      "case": 1,
+      "sample": "tst_000001_Left_2.bin",
+      "mode": "hybrid",
+      "total_cycles": 1078765,
+      "pw1_cycles": 23964,
+      "dw_cycles": 1030830,
+      "pw2_cycles": 23971,
+      "pw1_core_cycles": 23427,
+      "pw2_core_cycles": 23427,
+      "compared_bytes": 8000,
+      "mismatches": 0
+    },
+    {
+      "case": 1,
+      "sample": "tst_000001_Left_2.bin",
+      "mode": "cpu_only",
+      "total_cycles": 8817285,
+      "pw1_cycles": 3892608,
+      "dw_cycles": 1030830,
+      "pw2_cycles": 3893847,
+      "pw1_core_cycles": 0,
+      "pw2_core_cycles": 0,
+      "compared_bytes": 8000,
+      "mismatches": 0
+    }
+  ],
+  "diagnostics": [],
+  "fixture_sha256": "becea6ef2f550975714dfbb00fa41c6dfda3e4da5d54697ad9f17a7169465f13",
+  "ibex_revision": "2373e5dadcfc4f56672962fa242f6a051acc9aca",
+  "hardware_starts": 4,
+  "hardware_done": 4,
+  "accelerator_sram_reads": 12864,
+  "accelerator_sram_writes": 8000,
+  "firmware_sha256": "40cdf0c7212a64a65dc34dca261463a897752fa262879340734f4ac91fdc4eb6",
+  "source_commit": "a37a911",
+  "gcc": "13.2.0",
+  "verilator": "5.020",
+  "fusesoc": "2.4.3",
+  "edalize": "0.6.1"
+}

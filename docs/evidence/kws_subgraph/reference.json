@@ -1,0 +1,236 @@
+{
+  "tensorflow": "2.16.1",
+  "resolver": "BUILTIN_REF",
+  "numpy": "1.26.4",
+  "model_commit": "4addd0fa08d216e20637637874e084895f289da4",
+  "model_url": "https://raw.githubusercontent.com/mlcommons/tiny/4addd0fa08d216e20637637874e084895f289da4/benchmark/training/keyword_spotting/trained_models/kws_ref_model.tflite",
+  "model_sha256": "aeea436800704fce17b17292e4412630ad856e9d777c044c64ef748a880bd0ae",
+  "input_commit": "cf7c2f2634608a7c0ea7458ab7cb3379f2863424",
+  "labels_sha256": "6cb3709762d53fe64eb00eaf4a75796248bb3c1386f1d1f93ccdb07b071e9698",
+  "parameters": [
+    {
+      "layer": "pw1",
+      "operator": 2,
+      "tensors": [
+        23,
+        18,
+        6,
+        24
+      ],
+      "weight_shape": [
+        64,
+        1,
+        1,
+        64
+      ],
+      "weights_sha256": "ffcb8f0e07bcdddbfc375df038dd6a487714e1c984d132510a78bf32dea8d9e6",
+      "parameters_sha256": "5c9bfea0ecf476653981e33d20d14c0fe06e9267f664ffce31ad124a29e488c6",
+      "input_scale": 0.0828150063753128,
+      "output_scale": 0.06002569571137428,
+      "input_zero_point": -128,
+      "output_zero_point": -128,
+      "weight_zero_point": 0,
+      "accumulator_bounds": [
+        -551440,
+        503000
+      ]
+    },
+    {
+      "layer": "dw",
+      "operator": 3,
+      "tensors": [
+        24,
+        8,
+        7,
+        25
+      ],
+      "weight_shape": [
+        1,
+        3,
+        3,
+        64
+      ],
+      "weights_sha256": "306bf6072cb8472d274c059c4ff0338a2482b36626052ff0b79fa2e685899ee2",
+      "parameters_sha256": "e744ff94dd44dc8c7524245dd227430cde902e7fb6892f285e36265284665c66",
+      "input_scale": 0.06002569571137428,
+      "output_scale": 0.06276002526283264,
+      "input_zero_point": -128,
+      "output_zero_point": -128,
+      "weight_zero_point": 0,
+      "accumulator_bounds": [
+        -153306,
+        151556
+      ]
+    },
+    {
+      "layer": "pw2",
+      "operator": 4,
+      "tensors": [
+        25,
+        19,
+        9,
+        26
+      ],
+      "weight_shape": [
+        64,
+        1,
+        1,
+        64
+      ],
+      "weights_sha256": "78c328e1f462eb9481edb6b249c190626b2aa2c81b55513b566e1b8a041990d8",
+      "parameters_sha256": "32f5bcd1fa9c10c4dbbe089f2b193b0715d157c9fb4a37ccc7a0776c2e6ab09f",
+      "input_scale": 0.06276002526283264,
+      "output_scale": 0.03740178793668747,
+      "input_zero_point": -128,
+      "output_zero_point": -128,
+      "weight_zero_point": 0,
+      "accumulator_bounds": [
+        -520993,
+        517492
+      ]
+    }
+  ],
+  "tensor_shape": [
+    1,
+    25,
+    5,
+    64
+  ],
+  "cases": [
+    {
+      "sample": "tst_000000_Stop_7.bin",
+      "input_url": "https://raw.githubusercontent.com/eembc/benchmark-runner-ml/cf7c2f2634608a7c0ea7458ab7cb3379f2863424/datasets/kws01/tst_000000_Stop_7.bin",
+      "input_sha256": "ccadc642dec19c4a7f9522207ef8f1b60af7164a86894e03b68b7f5b723503e4",
+      "tensors": {
+        "23": {
+          "sha256": "9b3d9d6ba64079304f99477cd6689a44018e7ab6987d7611d8bfc0ec3be5d81d",
+          "bytes": 8000,
+          "value_range": [
+            -128,
+            -32
+          ]
+        },
+        "24": {
+          "sha256": "877299da8c940c038a02e2b5adee0f47dbce2f419697648394dcb2f0317ddb8f",
+          "bytes": 8000,
+          "value_range": [
+            -128,
+            16
+          ]
+        },
+        "25": {
+          "sha256": "77bf309dcf7cdd0a8bf080748bb40929957a53a6ba3c3d8f83c87b26d540e183",
+          "bytes": 8000,
+          "value_range": [
+            -128,
+            18
+          ]
+        },
+        "26": {
+          "sha256": "7be9b616635d7f96458b3c5bb997f95e08fc5266288552df7367c83e33592b62",
+          "bytes": 8000,
+          "value_range": [
+            -128,
+            65
+          ]
+        }
+      },
+      "stages": [
+        {
+          "operator": 2,
+          "output_tensor": 24,
+          "input_sha256": "9b3d9d6ba64079304f99477cd6689a44018e7ab6987d7611d8bfc0ec3be5d81d",
+          "output_sha256": "877299da8c940c038a02e2b5adee0f47dbce2f419697648394dcb2f0317ddb8f",
+          "compared_bytes": 8000,
+          "mismatches": 0
+        },
+        {
+          "operator": 3,
+          "output_tensor": 25,
+          "input_sha256": "877299da8c940c038a02e2b5adee0f47dbce2f419697648394dcb2f0317ddb8f",
+          "output_sha256": "77bf309dcf7cdd0a8bf080748bb40929957a53a6ba3c3d8f83c87b26d540e183",
+          "compared_bytes": 8000,
+          "mismatches": 0
+        },
+        {
+          "operator": 4,
+          "output_tensor": 26,
+          "input_sha256": "77bf309dcf7cdd0a8bf080748bb40929957a53a6ba3c3d8f83c87b26d540e183",
+          "output_sha256": "7be9b616635d7f96458b3c5bb997f95e08fc5266288552df7367c83e33592b62",
+          "compared_bytes": 8000,
+          "mismatches": 0
+        }
+      ],
+      "compared_bytes": 24000,
+      "mismatches": 0
+    },
+    {
+      "sample": "tst_000001_Left_2.bin",
+      "input_url": "https://raw.githubusercontent.com/eembc/benchmark-runner-ml/cf7c2f2634608a7c0ea7458ab7cb3379f2863424/datasets/kws01/tst_000001_Left_2.bin",
+      "input_sha256": "98344c4aea43a4cac9c729d01f7ac534310edb81bfe93920843e7cd52c4c21f1",
+      "tensors": {
+        "23": {
+          "sha256": "cf99a9311561e966e68b18867152997a96d030e8770c17f54ac5c9903b89d98a",
+          "bytes": 8000,
+          "value_range": [
+            -128,
+            -45
+          ]
+        },
+        "24": {
+          "sha256": "fe4506168f5f60191854b38bc6eb101fab5054fa9592a72f32102d2b191a8fc3",
+          "bytes": 8000,
+          "value_range": [
+            -128,
+            -37
+          ]
+        },
+        "25": {
+          "sha256": "40c05c79ae7e1c0d107ef3d8f9eabc52125646780c7ff50419718f51044d4088",
+          "bytes": 8000,
+          "value_range": [
+            -128,
+            -12
+          ]
+        },
+        "26": {
+          "sha256": "005dfea045d953796e96dfb85c8fbfb82be1d8a0eee7ee71648f3497f6151d8d",
+          "bytes": 8000,
+          "value_range": [
+            -128,
+            33
+          ]
+        }
+      },
+      "stages": [
+        {
+          "operator": 2,
+          "output_tensor": 24,
+          "input_sha256": "cf99a9311561e966e68b18867152997a96d030e8770c17f54ac5c9903b89d98a",
+          "output_sha256": "fe4506168f5f60191854b38bc6eb101fab5054fa9592a72f32102d2b191a8fc3",
+          "compared_bytes": 8000,
+          "mismatches": 0
+        },
+        {
+          "operator": 3,
+          "output_tensor": 25,
+          "input_sha256": "fe4506168f5f60191854b38bc6eb101fab5054fa9592a72f32102d2b191a8fc3",
+          "output_sha256": "40c05c79ae7e1c0d107ef3d8f9eabc52125646780c7ff50419718f51044d4088",
+          "compared_bytes": 8000,
+          "mismatches": 0
+        },
+        {
+          "operator": 4,
+          "output_tensor": 26,
+          "input_sha256": "40c05c79ae7e1c0d107ef3d8f9eabc52125646780c7ff50419718f51044d4088",
+          "output_sha256": "005dfea045d953796e96dfb85c8fbfb82be1d8a0eee7ee71648f3497f6151d8d",
+          "compared_bytes": 8000,
+          "mismatches": 0
+        }
+      ],
+      "compared_bytes": 24000,
+      "mismatches": 0
+    }
+  ],
+  "fixture_sha256": "becea6ef2f550975714dfbb00fa41c6dfda3e4da5d54697ad9f17a7169465f13"
+}

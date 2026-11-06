@@ -1,0 +1,117 @@
+{
+  "source_commit": "a37a911",
+  "clock_hz": 50000000,
+  "part": "xc7k325tffg900-2",
+  "gcc": "xPack 15.2.0",
+  "vivado": "2023.2",
+  "questa": "2024.1",
+  "bitstream": {
+    "bit_sha256": "247734676fc3f65914e153a9bea5db27b8b146f85113f73015f003ec3c774e65",
+    "usr_access": "43494d4a",
+    "variant": "banked",
+    "turnaround": 1,
+    "input_cache": 2,
+    "prepared_files": {
+      "firmware.mem": "da9b6b780755a0867a63a432e2fcf3823a1a606ee0a4552c2acef996ed538147",
+      "sram.mem": "b1f4d69af55a88173ae2ca243614292f5970dbadc09f63611b2a847cad0b9018",
+      "cpu_include/myCPU_m_ext.sv": "ef162478fa0ec5b84a65eb5a2bf82f497312fd5216a9f31a92d6774511169aa6"
+    },
+    "two_layer": false,
+    "kws_fixture_sha256": "becea6ef2f550975714dfbb00fa41c6dfda3e4da5d54697ad9f17a7169465f13",
+    "diagnostic": true
+  },
+  "firmware_elf_sha256": "a8df82d6764681b6cbf10260d1f6a1e9e80e1cb6b69581da1084d3ccb102eb1d",
+  "text_bytes": 5880,
+  "data_bytes": 144,
+  "bss_bytes": 0,
+  "stack_reserved_bytes": 3072,
+  "stack_static_max_chain_bytes": 320,
+  "cpu_pw_text_section_sha256": "468175f0de2885ca7426c894366f2bf82dda1eb1c44d110a564561b348f90da2",
+  "jyyd_cpu_sources": {
+    "common/RF.sv": "42ffda2ad9168cfc9803d87ef4df7cc7dfb212b1f33d18c3cf3074a9497eb4f6",
+    "common/Control.sv": "fbc90c20ed4613a64a1eb492214566b475ab40ed9e16651768897206ab5ec59e",
+    "common/IMMGEN.sv": "e73be0f5f75d1d057ef819625d6c34b3e73d21eded269c9463afe7938bac14f5",
+    "common/CCTL.sv": "32e15e41e8a0b74431b43c4b7c194f63e957b1e179fc3a47e5f65081d29e940d",
+    "common/ALU.sv": "bb7e2e64ad75e352c01f79c2b0203015624c87de4d0d7f8a5bf87adc83c36abf",
+    "common/ACTL.sv": "d570cefa7815fe3c8f980e9bcfc2ad967d9277158dcc6c76eef2afa6bc458e96",
+    "common/CSR.sv": "a1efe6c55ca2815a9437b9e7ae2dd9efffd274ed11203ae46878eb0834e1391f",
+    "route_src/myCPU.sv": "11ab47adf8f53ea8e06696aeaedf7c20ded74df2ecebb2b7cbdf4a12a5b2a4bc",
+    "route_src/uart.sv": "50eb7bea5a678f855132fe01e50507efac0ecea2964f6c31153666d281097fd1",
+    "common/defines.sv": "f5b990d5ae57c77a6db52cb68793c6987a33a98d6a9ebb1a52442b1e7f49ca2b",
+    "common/myCPU_units.sv": "74d32b029087e08b2c6b1a7979616342c31a2080315f60c3ee4577341bf7b0b0",
+    "common/myCPU_m_ext.sv": "5598f5d1e86aca18438a4cb87997b97bbbcf73bf9c5f14ece732186fddc7842e",
+    "common/myCPU_bitmanip.sv": "0583eb0e6595ea72c22b7811633d08a3ddb49a64164c207e3b3961060c111047"
+  },
+  "wns_ns": 7.025,
+  "whs_ns": 0.082,
+  "unconstrained_internal": 0,
+  "utilization": {
+    "cim_k7_top": {
+      "lut": 16287,
+      "ff": 11237,
+      "ramb36": 18,
+      "ramb18": 0,
+      "dsp": 8
+    },
+    "accel": {
+      "lut": 10355,
+      "ff": 8222,
+      "ramb36": 2,
+      "ramb18": 0,
+      "dsp": 4
+    },
+    "(accel)": {
+      "lut": 3284,
+      "ff": 3649,
+      "ramb36": 2,
+      "ramb18": 0,
+      "dsp": 0
+    },
+    "macro_unit": {
+      "lut": 6308,
+      "ff": 4532,
+      "ramb36": 0,
+      "ramb18": 0,
+      "dsp": 0
+    },
+    "quant_unit": {
+      "lut": 767,
+      "ff": 41,
+      "ramb36": 0,
+      "ramb18": 0,
+      "dsp": 4
+    },
+    "cpu": {
+      "lut": 5894,
+      "ff": 2782,
+      "ramb36": 0,
+      "ramb18": 0,
+      "dsp": 4
+    }
+  },
+  "critical_setup": [
+    "Source:                 system/accel/plane_index_reg[1]/C",
+    "Destination:            system/accel/macro_unit/result_data_reg[13]/D",
+    "Path Group:             raw_clk",
+    "Path Type:              Setup (Max at Slow Process Corner)",
+    "Requirement:            20.000ns  (raw_clk rise@20.000ns - raw_clk rise@0.000ns)",
+    "Data Path Delay:        12.529ns  (logic 2.062ns (16.458%)  route 10.467ns (83.542%))"
+  ],
+  "drc_rules": [
+    "| DPIP-1 | Warning  | Input pipelining       | 8          |",
+    "| DPOP-1 | Warning  | PREG Output pipelining | 4          |",
+    "| DPOP-2 | Warning  | MREG Output pipelining | 8          |"
+  ],
+  "route_summary": [
+    "       # of routable nets..................... :       27971 :",
+    "       # of nets with routing errors.......... :           0 :"
+  ],
+  "report_sha256": {
+    "timing.rpt": "1e1d297be3f9280e75237ca762d0aea99d6fc5230018f5f3d81f541ca385b632",
+    "check_timing.rpt": "d4c1f02401181537e18deebadf5a230384fdf74297c8e51a825f15a4113c2b90",
+    "utilization.rpt": "8e9ba7d77f610aed508371302328462d5c4d6111ea19bbb3413d253719e51db9",
+    "critical_paths.rpt": "c657a63f657bc1b71c442289d435fa6c70aafb0a1b18ba128c9a161d4b099456",
+    "route.rpt": "65c2897ae4cd9b542888edecfa3fb465babebf982d6a6d608462089b5dfb2532",
+    "drc.rpt": "4b79401f535e8828e261d7903b9a4742ecf626c12d7366ee4cca35deb7ba5afd"
+  }
+}

@@ -15,6 +15,10 @@ python3 tools/run_ibex.py --m 125   # 完整双层任务
 两级 golden 均由独立整数参考生成，输出包含两个 INT8 文件、
 周期与流量 JSON、CPU 执行轨迹。[依赖安装与输出说明](docs/IBEX.md)
 
+`upgrade/kws-real-subgraph` 追加真实模型的 PW(op2) → CPU DW(op3)
+→ PW(op4) 应用入口，支持开放 Ibex 和 K7。
+[数据链、布局和复现](docs/KWS_SUBGRAPH.md)
+
 K7 50 MHz 的双层推荐配置为 `banked-early-write`。M125 在同一
 位流中从 CPU 两次 START 的 943.94 µs 降到 794.60 µs，减少
 15.82%。其中提前写回一步节省 30.02 µs。层间保留比链式 SRAM

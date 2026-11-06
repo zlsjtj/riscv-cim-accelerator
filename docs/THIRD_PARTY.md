@@ -30,6 +30,11 @@ TensorFlow原文件摘取两个函数编译，小封装不构建整个TensorFlow
 Yosys WASM依赖的版本/许可及综合边界见`docs/INTEGRATION.md`。Questa、
 Vivado及其附带GCC使用本机已有安装，没有将其二进制复制进项目源码。
 
+真实 KWS 子图还使用同一 EEMBC 提交下的 `tst_000001_Left_2.bin`。
+两样本的下载地址、SHA-256、模型及派生参数哈希保存在
+[KWS 参考清单](evidence/kws_subgraph/reference.json)。模型、样本及
+导出的完整张量在本地生成。
+
 公开源码范围为项目原创 `rtl/`、`tb/`、`sw/`、`fpga/`、`tools/`、
 README、规格、交付文档及精选文本证据。`build/`、外部 CPU/UART、生成副本、板卡原资料、
 下载的上游样本、导出的张量与黄金数据均作为本地输入或产物保留。现有

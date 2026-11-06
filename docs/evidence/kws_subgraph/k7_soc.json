@@ -1,0 +1,155 @@
+{
+  "modes": [
+    {
+      "case": 0,
+      "sample": "tst_000000_Stop_7.bin",
+      "mode": "hybrid",
+      "total_cycles": 933936,
+      "pw1_cycles": 23624,
+      "dw_cycles": 886686,
+      "pw2_cycles": 23626,
+      "pw1_core_cycles": 23191,
+      "pw2_core_cycles": 23191,
+      "compared_bytes": 8000,
+      "mismatches": 0
+    },
+    {
+      "case": 0,
+      "sample": "tst_000000_Stop_7.bin",
+      "mode": "cpu_only",
+      "total_cycles": 6385144,
+      "pw1_cycles": 2749550,
+      "dw_cycles": 886728,
+      "pw2_cycles": 2748866,
+      "pw1_core_cycles": 0,
+      "pw2_core_cycles": 0,
+      "compared_bytes": 8000,
+      "mismatches": 0
+    },
+    {
+      "case": 1,
+      "sample": "tst_000001_Left_2.bin",
+      "mode": "hybrid",
+      "total_cycles": 934230,
+      "pw1_cycles": 23627,
+      "dw_cycles": 886971,
+      "pw2_cycles": 23632,
+      "pw1_core_cycles": 23191,
+      "pw2_core_cycles": 23191,
+      "compared_bytes": 8000,
+      "mismatches": 0
+    },
+    {
+      "case": 1,
+      "sample": "tst_000001_Left_2.bin",
+      "mode": "cpu_only",
+      "total_cycles": 6384683,
+      "pw1_cycles": 2749613,
+      "dw_cycles": 886974,
+      "pw2_cycles": 2748096,
+      "pw1_core_cycles": 0,
+      "pw2_core_cycles": 0,
+      "compared_bytes": 8000,
+      "mismatches": 0
+    }
+  ],
+  "diagnostics": [
+    {
+      "case": 0,
+      "mode": "hybrid",
+      "tensor": 24,
+      "compared_bytes": 8000,
+      "mismatches": 0,
+      "sha256": "877299da8c940c038a02e2b5adee0f47dbce2f419697648394dcb2f0317ddb8f"
+    },
+    {
+      "case": 0,
+      "mode": "hybrid",
+      "tensor": 25,
+      "compared_bytes": 8000,
+      "mismatches": 0,
+      "sha256": "77bf309dcf7cdd0a8bf080748bb40929957a53a6ba3c3d8f83c87b26d540e183"
+    },
+    {
+      "case": 0,
+      "mode": "hybrid",
+      "tensor": 26,
+      "compared_bytes": 8000,
+      "mismatches": 0,
+      "sha256": "7be9b616635d7f96458b3c5bb997f95e08fc5266288552df7367c83e33592b62"
+    },
+    {
+      "case": 0,
+      "mode": "cpu_only",
+      "tensor": 24,
+      "compared_bytes": 8000,
+      "mismatches": 0,
+      "sha256": "877299da8c940c038a02e2b5adee0f47dbce2f419697648394dcb2f0317ddb8f"
+    },
+    {
+      "case": 0,
+      "mode": "cpu_only",
+      "tensor": 25,
+      "compared_bytes": 8000,
+      "mismatches": 0,
+      "sha256": "77bf309dcf7cdd0a8bf080748bb40929957a53a6ba3c3d8f83c87b26d540e183"
+    },
+    {
+      "case": 0,
+      "mode": "cpu_only",
+      "tensor": 26,
+      "compared_bytes": 8000,
+      "mismatches": 0,
+      "sha256": "7be9b616635d7f96458b3c5bb997f95e08fc5266288552df7367c83e33592b62"
+    },
+    {
+      "case": 1,
+      "mode": "hybrid",
+      "tensor": 24,
+      "compared_bytes": 8000,
+      "mismatches": 0,
+      "sha256": "fe4506168f5f60191854b38bc6eb101fab5054fa9592a72f32102d2b191a8fc3"
+    },
+    {
+      "case": 1,
+      "mode": "hybrid",
+      "tensor": 25,
+      "compared_bytes": 8000,
+      "mismatches": 0,
+      "sha256": "40c05c79ae7e1c0d107ef3d8f9eabc52125646780c7ff50419718f51044d4088"
+    },
+    {
+      "case": 1,
+      "mode": "hybrid",
+      "tensor": 26,
+      "compared_bytes": 8000,
+      "mismatches": 0,
+      "sha256": "005dfea045d953796e96dfb85c8fbfb82be1d8a0eee7ee71648f3497f6151d8d"
+    },
+    {
+      "case": 1,
+      "mode": "cpu_only",
+      "tensor": 24,
+      "compared_bytes": 8000,
+      "mismatches": 0,
+      "sha256": "fe4506168f5f60191854b38bc6eb101fab5054fa9592a72f32102d2b191a8fc3"
+    },
+    {
+      "case": 1,
+      "mode": "cpu_only",
+      "tensor": 25,
+      "compared_bytes": 8000,
+      "mismatches": 0,
+      "sha256": "40c05c79ae7e1c0d107ef3d8f9eabc52125646780c7ff50419718f51044d4088"
+    },
+    {
+      "case": 1,
+      "mode": "cpu_only",
+      "tensor": 26,
+      "compared_bytes": 8000,
+      "mismatches": 0,
+      "sha256": "005dfea045d953796e96dfb85c8fbfb82be1d8a0eee7ee71648f3497f6151d8d"
+    }
+  ],
+  "fixture_sha256": "becea6ef2f550975714dfbb00fa41c6dfda3e4da5d54697ad9f17a7169465f13"
+}
