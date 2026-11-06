@@ -58,14 +58,15 @@ def prepared_hashes():
                                                "cpu_include/myCPU_m_ext.sv")}
 
 
-def check_prepared(source, two_layer, retain, prefetch):
+def check_prepared(source, two_layer, retain, prefetch, early_write):
     metadata = OUT / "build_metadata.json"
     if not metadata.is_file():
         raise ValueError("Run k7.py prepare with the same --out and --cpu-source first")
     record = json.loads(metadata.read_text(encoding="utf-8"))
     if (record.get("cpu_sources") != cpu_hashes(source) or record.get("prepared_files") != prepared_hashes()
             or record.get("two_layer", False) != two_layer or record.get("retain", False) != retain
-            or record.get("prefetch", False) != prefetch):
+            or record.get("prefetch", False) != prefetch
+            or record.get("early_write", False) != early_write):
         raise ValueError("CPU sources or generated files differ from prepare. Run k7.py prepare again")
 
 
@@ -83,7 +84,7 @@ def stage_m_unit(source):
             "staged_sha256": sha(patched), "change": "M-unit reset is sampled on clk"}
 
 
-def prepare(source, tools, two_layer, retain, prefetch):
+def prepare(source, tools, two_layer, retain, prefetch, early_write):
     sources = cpu_hashes(source)
     cases = generate("real")
     case = next((case for case in cases if case["M"] == 125 and "activation_sha256" in case), None)
@@ -104,6 +105,8 @@ def prepare(source, tools, two_layer, retain, prefetch):
         defines.append("-DCIM_RETAIN_BENCHMARK")
     if prefetch:
         defines.append("-DCIM_PREFETCH_BENCHMARK")
+    if early_write:
+        defines.append("-DCIM_EARLY_WRITE_BENCHMARK")
     run([cc, "-march=rv32im", "-mabi=ilp32", "-Os", "-ffreestanding", *defines,
          "-fno-builtin", "-msmall-data-limit=0", "-mno-relax",
          "-ffunction-sections", "-fdata-sections", "-nostdlib",
@@ -136,6 +139,7 @@ def prepare(source, tools, two_layer, retain, prefetch):
         "two_layer": two_layer,
         "retain": retain,
         "prefetch": prefetch,
+        "early_write": early_write,
         "m_unit_reset_patch": m_unit,
         "fpga_part": "xc7k325tffg900-2", "ref_clock_hz": 200000000, "core_clock_hz": 50000000,
     }
@@ -159,7 +163,7 @@ def parse_results(output):
     return rows
 
 
-def parse_chain_results(output, retain=False, prefetch=False):
+def parse_chain_results(output, methods):
     rows = []
     for line in output.splitlines():
         match = re.fullmatch(r"(?:# )?CHAIN_RESULT ((?:[0-9a-f]{8} ){6}[0-9a-f]{8})", line.strip())
@@ -169,7 +173,6 @@ def parse_chain_results(output, retain=False, prefetch=False):
                 raise ValueError(f"Invalid result: {line}")
             rows.append(dict(method=method, M=m, cycles=cycles, bytes_per_layer=count,
                              intermediate_mismatches=mid_bad, final_mismatches=out_bad))
-    methods = 5 if prefetch else 4 if retain else 3
     expected = [(method, m) for m in (1, 125) for method in range(methods)]
     if "CIM_PASS" not in output.split() or [(row["method"], row["M"]) for row in rows] != expected:
         raise RuntimeError("Incomplete two-layer result sequence")
@@ -220,8 +223,10 @@ def simulate(source, questa, trace_blocks, profile_tasks, turn, cache, two_layer
     control_test = "+TEST_CHAIN_CONTROL" if two_layer else "+TEST_START_COUNTER"
     control_pass = "PASS chain control" if two_layer else "PASS accepted START"
     retain_args = ["+TEST_RETAIN"] if cache >= 3 else []
-    if cache == 4:
+    if cache >= 4:
         retain_args.append("+TEST_PREFETCH")
+    if cache == 5:
+        retain_args.append("+TEST_EARLY_WRITE")
     counter = run([questa / "vsim.exe", "-c", "-voptargs=-suppress 7061", *generics, "tb_rv_system",
                    control_test, *retain_args, "-do",
                    "onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0"],
@@ -239,7 +244,7 @@ def simulate(source, questa, trace_blocks, profile_tasks, turn, cache, two_layer
                   "onbreak {quit -code 1}; onerror {quit -code 1}; run -all; quit -code 0"],
                  "soc_simulation.log")
     if two_layer:
-        (OUT / "soc_chain_results.json").write_text(json.dumps(parse_chain_results(output, cache >= 3, cache == 4), indent=2), encoding="utf-8")
+        (OUT / "soc_chain_results.json").write_text(json.dumps(parse_chain_results(output, cache + 1), indent=2), encoding="utf-8")
         return
     (OUT / "soc_results.json").write_text(json.dumps(parse_results(output), indent=2), encoding="utf-8")
     (OUT / "soc_reset_results.json").write_text(json.dumps(parse_resets(output), indent=2), encoding="utf-8")
@@ -279,7 +284,7 @@ def program(vivado, target, port, archive, variant, usr_access, two_layer):
     result = {"jtag_serial": target, "uart_port": port, "uart_baud": 115200,
               "variant": variant, "bit_sha256": sha(bit), "usr_access": usr_access}
     if two_layer:
-        result["chain"] = parse_chain_results(output, variant != "banked", variant == "banked-prefetch")
+        result["chain"] = parse_chain_results(output, VARIANTS[variant][1] + 1)
     else:
         result.update(resets=parse_resets(output), tasks=parse_results(output), software=parse_cpu_results(output))
     (OUT / "board_results.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
@@ -302,7 +307,8 @@ def main():
     parser.add_argument("--jtag")
     parser.add_argument("--port")
     args = parser.parse_args()
-    prefetch = args.variant == "banked-prefetch"
+    early_write = args.variant == "banked-early-write"
+    prefetch = args.variant == "banked-prefetch" or early_write
     retain = args.variant == "banked-retain" or prefetch
     if args.two_layer and not (args.variant == "banked" or retain):
         parser.error("--two-layer requires a banked variant")
@@ -323,7 +329,9 @@ def main():
         args.gcc_bin = Path(gcc).parent
     turn, cache, usr_access = VARIANTS[args.variant]
     default_out = ("k7_interlayer_cache" if retain else "k7_two_layer") if args.two_layer else f"k7_matrix_{args.variant}"
-    if prefetch:
+    if early_write:
+        default_out = "k7_interlayer_writeback"
+    elif prefetch:
         default_out = "k7_interlayer_schedule"
     if args.two_layer and not retain:
         usr_access = "43494d45"
@@ -333,9 +341,9 @@ def main():
     questa = Path(os.environ.get("QUESTA_BIN", "E:/questasim64_2024.1/win64"))
     OUT.mkdir(parents=True, exist_ok=True)
     if args.step in ("sim", "impl"):
-        check_prepared(source, args.two_layer, retain, prefetch)
+        check_prepared(source, args.two_layer, retain, prefetch, early_write)
     if args.step == "prepare":
-        prepare(source, args.gcc_bin.resolve(), args.two_layer, retain, prefetch)
+        prepare(source, args.gcc_bin.resolve(), args.two_layer, retain, prefetch, early_write)
     elif args.step == "sim":
         simulate(source, questa, args.trace_blocks, args.profile_tasks, turn, cache, args.two_layer)
     elif args.step == "impl":

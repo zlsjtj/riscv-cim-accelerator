@@ -109,7 +109,10 @@ static int run_pair(const cim_device *dev, uint32_t m, unsigned kind) {
     // Choose the option before timing. Both chained paths share one call site.
     uint32_t options = kind >= 3 ? CIM_RETAIN : 0;
 #ifdef CIM_PREFETCH_BENCHMARK
-    if (kind == 4) options |= CIM_PREFETCH;
+    if (kind >= 4) options |= CIM_PREFETCH;
+#endif
+#ifdef CIM_EARLY_WRITE_BENCHMARK
+    if (kind == 5) options |= CIM_EARLY_WRITE;
 #endif
     __asm__ volatile ("" : "+r"(options) :: "memory");
 #endif
@@ -152,7 +155,9 @@ static int run_pair(const cim_device *dev, uint32_t m, unsigned kind) {
 int main(void) {
     static const cim_device dev = {0, cfg_read, cfg_write, visibility, visibility};
     print("CIM_BOOT RV32IM two-layer tensor23\n");
-#ifdef CIM_PREFETCH_BENCHMARK
+#ifdef CIM_EARLY_WRITE_BENCHMARK
+    const unsigned methods = 6;
+#elif defined(CIM_PREFETCH_BENCHMARK)
     const unsigned methods = 5;
 #elif defined(CIM_RETAIN_BENCHMARK)
     const unsigned methods = 4;

@@ -2,7 +2,7 @@
 // Original portable digital peripheral. Local reads return >=1 clock after acceptance.
 module cim_accel #(
  parameter bit TURNAROUND=1,
- parameter int INPUT_CACHE=0 // 0: bypass, 1: word replay, 2: paired, 3: retain, 4: prefetch
+ parameter int INPUT_CACHE=0 // 0: bypass, 1: word, 2: paired, 3: retain, 4: prefetch, 5: early writeback
 ) (
  input logic clk, rst_n,
  input logic cfg_valid, cfg_write,
@@ -21,7 +21,8 @@ module cim_accel #(
  localparam RD_PARAM=0, RD_WEIGHT=1, RD_INPUT=2;
  localparam BANKED_REPLAY=INPUT_CACHE>=2;
  localparam INTERLAYER_CACHE=INPUT_CACHE>=3;
- localparam PREFETCH_REPLAY=INPUT_CACHE==4;
+ localparam PREFETCH_REPLAY=INPUT_CACHE>=4;
+ localparam EARLY_WRITEBACK=INPUT_CACHE==5;
  localparam [3:0] REPLAY_LAST=BANKED_REPLAY ? 4'd14 : 4'd15;
  logic [1:0] state;
  logic busy, done, error;
@@ -29,6 +30,7 @@ module cim_accel #(
  logic [31:0] a_base,w_base,p_base,y_base;
  logic [31:0] shadow_w2,shadow_p2,shadow_y2,w2_base,p2_base,y2_base;
  logic chain_pending, retain_intermediate, prefetch_enabled;
+ logic early_write_enabled;
  logic prefetch_pending, prefetch_ctx;
  logic [7:0] task_m, next_p;
  logic mode;
@@ -51,6 +53,7 @@ module cim_accel #(
  logic [63:0] a_plane;
  logic [223:0] mac_data;
  logic [1:0] live, input_ready, issued_low, issued_high, recon_done, output_ready;
+ logic [1:0] first_word_ready;
  logic [7:0] position[0:1];
  logic [4:0] fill_word[0:1];
  logic [255:0] input_low[0:1],input_high[0:1];
@@ -83,17 +86,21 @@ module cim_accel #(
                          shadow_mode<=1 && ((shadow_a|shadow_w|shadow_p|shadow_y)&32'h3)==0 &&
                          (!cfg_wdata[2] || ((shadow_w2|shadow_p2|shadow_y2)&32'h3)==0) &&
                          (!cfg_wdata[3] || (INTERLAYER_CACHE && cfg_wdata[2])) &&
-                         (!cfg_wdata[4] || (PREFETCH_REPLAY && cfg_wdata[3]));
+                         (!cfg_wdata[4] || (PREFETCH_REPLAY && cfg_wdata[3])) &&
+                         (!cfg_wdata[5] || (EARLY_WRITEBACK && cfg_wdata[4] && shadow_mode==1));
 
  // A returning input word releases the single read credit on this edge.
  // Only offer the next word of the same context, with ready writes taking
  // precedence. If stalled, the ordinary request registers hold the offer.
  wire read_return = rd_pending && mem_rvalid;
+ wire [1:0] write_ready = output_ready | (first_word_ready & ~write_index);
  wire input_follow = TURNAROUND && rst_n && !request_valid && read_return && state==RUN &&
-                     rd_kind==RD_INPUT && rd_index<15 && output_ready==0;
+                     rd_kind==RD_INPUT && rd_index<15 && write_ready==0;
  wire read_accept = mem_valid && mem_ready && !mem_write;
  wire external_input = read_return && rd_kind==RD_INPUT;
  wire replay_intermediate = INTERLAYER_CACHE && retain_intermediate && !chain_pending;
+ wire early_writeback = EARLY_WRITEBACK && early_write_enabled && replay_intermediate;
+ wire write_commit = mem_valid && mem_ready && mem_write;
  wire retain_write = INTERLAYER_CACHE && rst_n && retain_intermediate && chain_pending &&
                      mem_valid && mem_ready && mem_write;
  wire [10:0] retain_addr = {position[req_ctx][6:0], tile, req_last};
@@ -108,7 +115,11 @@ module cim_accel #(
                        next_p<task_m && !prefetch_pending && !spad_active && !spad_rvalid &&
                        (prefetch_slot0 || prefetch_slot1);
  wire allocate_ctx = prefetch_pending ? prefetch_ctx : live[0];
- wire allocate_row = prefetch_pending ? (!live[prefetch_ctx] && !spad_active && !spad_rvalid) :
+ // The registered write owns the old tag through acceptance. Reload that
+ // context on the same edge only after both the write and replay can retire.
+ wire retiring_prefetch_ctx = early_writeback && write_commit && req_last && req_ctx==prefetch_ctx;
+ wire allocate_row = prefetch_pending ? ((!live[prefetch_ctx] || retiring_prefetch_ctx) &&
+                                        !spad_active && !spad_rvalid) :
                      (next_p<task_m && ((!mode && live==0) || (mode && live!=2'b11)));
  wire [6:0] replay_row = prefetch_pending ? next_p[6:0] : position[spad_ctx][6:0];
  wire [10:0] spad_addr = spad_write ? {position[rd_ctx][6:0], rd_index[3:0]} :
@@ -245,6 +256,7 @@ module cim_accel #(
    shadow_w2<=0;shadow_p2<=0;shadow_y2<=0;w2_base<=0;p2_base<=0;y2_base<=0;
    chain_pending<=0;retain_intermediate<=0;
    prefetch_enabled<=0;prefetch_pending<=0;prefetch_ctx<=0;
+   early_write_enabled<=0;first_word_ready<=0;
    a_base<=0;w_base<=0;p_base<=0;y_base<=0;task_m<=0;mode<=0;tile<=0;next_p<=0;
    cycles<=0;mem_wait<=0;macro_cycles<=0;
    request_valid<=0;mem_write<=0;request_addr<=0;mem_wdata<=0;mem_wstrb<=0;
@@ -291,6 +303,7 @@ module cim_accel #(
         chain_pending<=cfg_wdata[2];
         retain_intermediate<=cfg_wdata[3];
         prefetch_enabled<=cfg_wdata[4];prefetch_pending<=0;
+        early_write_enabled<=EARLY_WRITEBACK && cfg_wdata[5];first_word_ready<=0;
         w2_base<=shadow_w2;p2_base<=shadow_p2;y2_base<=shadow_y2;
         tile<=0;next_p<=0;load_word<=0;cycles<=0;mem_wait<=0;macro_cycles<=0;
         live<=0;input_ready<=0;issued_low<=0;issued_high<=0;recon_done<=0;output_ready<=0;
@@ -319,9 +332,10 @@ module cim_accel #(
     rd_index<=input_follow ? rd_index+1'b1 : req_index;
     if(TURNAROUND && (input_follow || req_kind==RD_INPUT)) rd_next_addr<=mem_addr+32'd4;
    end
-   if(mem_valid && mem_ready && mem_write) begin
+   if(write_commit) begin
      if(req_last) begin
       live[req_ctx]<=0;output_ready[req_ctx]<=0;write_index[req_ctx]<=0;
+      first_word_ready[req_ctx]<=0;
      end else write_index[req_ctx]<=1;
    end
    if(read_return) begin
@@ -377,9 +391,9 @@ module cim_accel #(
      request_valid<=1;mem_write<=0;mem_wstrb<=0;
      request_addr<=w_base+tile*512+load_word*4;req_kind<=RD_WEIGHT;req_index<=load_word;
     end else if(state==RUN) begin
-     if(output_ready[0] || output_ready[1]) begin
+     if(write_ready[0] || write_ready[1]) begin
       // Priority can only change between accepted requests, never under backpressure.
-      if(output_ready[0]) begin
+      if(write_ready[0]) begin
        req_ctx<=0;req_last<=write_index[0];
        request_addr<=y_base+position[0]*64+tile*8+write_index[0]*4;
        mem_wdata<=output_bytes[0][write_index[0]*32 +:32];
@@ -414,6 +428,7 @@ module cim_accel #(
      input_ready[allocate_ctx]<=prefetch_pending;
      issued_low[allocate_ctx]<=0;issued_high[allocate_ctx]<=0;
      recon_done[allocate_ctx]<=0;output_ready[allocate_ctx]<=0;
+     first_word_ready[allocate_ctx]<=0;
      quant_index[allocate_ctx]<=0;write_index[allocate_ctx]<=0;
      prefetch_pending<=0;
      next_p<=next_p+1;
@@ -445,6 +460,7 @@ module cim_accel #(
     end
     if(q_result_valid) begin
      output_bytes[q_result_ctx][q_result_channel*8 +:8]<=q_value;
+     if(early_writeback && q_result_channel==3) first_word_ready[q_result_ctx]<=1;
      if(q_result_channel==7) output_ready[q_result_ctx]<=1;
     end
     if(next_p==task_m && live==0 && raw_valid==0 && raw_reserved==0 &&

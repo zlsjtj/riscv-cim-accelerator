@@ -82,9 +82,10 @@ int cim_submit(const cim_device *d, const cim_task *t) {
 
 int cim_submit_pair_with_options(const cim_device *d, const cim_task *first,
                                  const cim_task *second, uint32_t options) {
-    if ((options & ~(uint32_t)(CIM_RETAIN | CIM_PREFETCH)) ||
+    if ((options & ~(uint32_t)(CIM_RETAIN | CIM_PREFETCH | CIM_EARLY_WRITE)) ||
         ((options & CIM_PREFETCH) && !(options & CIM_RETAIN)) || !device_valid(d) ||
         !ranges_valid(first) || !ranges_valid(second) ||
+        ((options & CIM_EARLY_WRITE) && (!(options & CIM_PREFETCH) || first->mode != 1)) ||
         first->y_base != second->a_base || first->m != second->m || first->mode != second->mode)
         return CIM_EINVAL;
     if (d->read32(d->context, CIM_STATUS) & CIM_BUSY) return CIM_EBUSY;

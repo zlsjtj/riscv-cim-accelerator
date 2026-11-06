@@ -95,14 +95,62 @@ def summarize_second_tile0(path):
                         record["backend_both_live"] += int(row["contexts_full"])
 
 
+def backend_stage(edge, ctx):
+    """Classify a non-macro, non-input edge by the oldest live row."""
+    if not edge["live_mask"]:
+        return "allocate" if edge["allocate"] else "tile_drain"
+    if edge["allocate"]:
+        return "allocate"
+    if edge["write_offer"] and edge["write_ctx"] == ctx:
+        if not edge["write_commit"]:
+            return "write_stall"
+        return "write_last" if edge["write_last"] else "write_first"
+    if (edge["output_ready_mask"] >> ctx) & 1:
+        return "write_enqueue"
+    if edge["quant_result"] and edge["quant_result_ctx"] == ctx:
+        return "quant_last" if edge["quant_result_channel"] == 7 else "quant_result"
+    if (edge["recon_mask"] >> ctx) & 1:
+        return "quant_issue" if edge["quant_issue"] and edge["quant_ctx"] == ctx else "quant_wait"
+    return "reconstruct" if edge["raw_mask"] else "macro_result_wait"
+
+
+def backend_tile0_edges(path, task):
+    """Return all second-layer tile-zero RUN edges with exclusive categories."""
+    prev_tile = None
+    layer = 1
+    start = None
+    with path.open(newline="", encoding="utf-8") as stream:
+        for row in csv.DictReader(stream):
+            if int(row["task"]) != task or row.pop("event").strip() != "edge":
+                continue
+            edge = {key: int(value) for key, value in row.items()}
+            tile = edge["tile"]
+            if prev_tile == 7 and tile == 0:
+                layer += 1
+            prev_tile = tile
+            if layer != 2 or tile != 0 or edge["state"] != 3:
+                continue
+            if start is None:
+                start = edge["cycle"]
+            live = [ctx for ctx in (0, 1) if (edge["live_mask"] >> ctx) & 1]
+            oldest = min(live, key=lambda ctx: edge[f"position{ctx}"]) if live else -1
+            phase = next((key for key in PHASES[1:-1] if edge[key]), "other")
+            yield dict(relative_cycle=edge["cycle"] - start, phase=phase, oldest=oldest,
+                       backend=backend_stage(edge, oldest) if phase == "other" else "", **edge)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("trace", type=Path)
-    parser.add_argument("--second-tile0", action="store_true",
-                        help="measure the second layer's first tile within a chained task")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--second-tile0", action="store_true",
+                       help="measure the second layer's first tile within a chained task")
+    group.add_argument("--backend-tile0", type=int, metavar="TASK",
+                       help="classify each second-layer tile-zero edge of a traced task")
     args = parser.parse_args()
     profile = summarize_second_tile0 if args.second_tile0 else summarize
-    records = list(profile(args.trace))
+    records = list(backend_tile0_edges(args.trace, args.backend_tile0)
+                   if args.backend_tile0 is not None else profile(args.trace))
     if not records:
         raise ValueError("No completed tasks")
     writer = csv.DictWriter(sys.stdout, list(records[0]), lineterminator="\n")
