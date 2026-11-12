@@ -1,14 +1,17 @@
 # Reproduce the project
 
-Use the [v0.4.0 stable checkout](https://github.com/zlsjtj/riscv-cim-accelerator/tree/v0.4.0).
+Use the [v0.4.0 stable checkout](https://github.com/zlsjtj/riscv-cim-accelerator/tree/v0.4.0) to reproduce the released functionality. The latest showcase documentation is on [main](../README.md).
 
 ## Quick start with the open CPU
 
-On Ubuntu 24.04 or WSL with Ubuntu 24.04, install the public toolchain and run the smoke test from the repository root.
+On Ubuntu 24.04 or WSL with Ubuntu 24.04, run the following commands from a directory where you want to clone the project.
 
 ~~~bash
 sudo apt-get update
 sudo apt-get install -y git verilator gcc-riscv64-unknown-elf g++ make libelf-dev python3-venv
+
+git clone --branch v0.4.0 --single-branch https://github.com/zlsjtj/riscv-cim-accelerator.git
+cd riscv-cim-accelerator
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install -r tools/requirements-ibex.txt

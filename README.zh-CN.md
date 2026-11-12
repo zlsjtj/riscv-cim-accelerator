@@ -1,6 +1,9 @@
 # RISC-V CiM Accelerator
 
-![在 FPGA 上实测的低位计算，数据从分 bank 输入暂存存储经 CiM 宏数字代理到 INT8 写回](docs/assets/hero.svg)
+<picture>
+  <source media="(max-width: 600px)" srcset="docs/assets/hero-narrow.svg">
+  <img src="docs/assets/hero.svg" alt="在 FPGA 上实测的低位计算。">
+</picture>
 
 RISC-V 控制的 INT8 加速器，包含 CiM 宏数字代理、开放 Ibex 仿真和 Kintex-7 实测。
 
@@ -16,9 +19,17 @@ RISC-V 控制的 INT8 加速器，包含 CiM 宏数字代理、开放 Ibex 仿�
 
 ## 快速开始
 
-在 Ubuntu 或 WSL 中安装[开放工具链](docs/IBEX.md#开放-ibex-整机复现)，从仓库根目录运行。
+在 Ubuntu 24.04 或运行 Ubuntu 24.04 的 WSL 中复现 v0.4.0 稳定功能。最新展示文档位于 [main](https://github.com/zlsjtj/riscv-cim-accelerator/tree/main)。
 
 ~~~bash
+sudo apt-get update
+sudo apt-get install -y git verilator gcc-riscv64-unknown-elf g++ make libelf-dev python3-venv
+
+git clone --branch v0.4.0 --single-branch https://github.com/zlsjtj/riscv-cim-accelerator.git
+cd riscv-cim-accelerator
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r tools/requirements-ibex.txt
 python3 tools/run_ibex.py
 ~~~
 
@@ -43,15 +54,15 @@ python3 tools/run_ibex.py
 
 ## 系统架构
 
-![CPU 和加速器共享 SRAM，CPU 通过 MMIO 分别启动两个 PW，并在两次启动之间执行 DW](docs/assets/architecture.svg)
+![CPU 和加速器共享 SRAM，CPU 通过控制器的 MMIO 接口写 START、读 DONE，在两次 PW 启动之间执行 DW](docs/assets/architecture.svg)
 
 [五分钟设计讲解](docs/DESIGN_TALK.md) · [RTL 架构](docs/ARCHITECTURE.md)
 
 ## 演示
 
-<a href="docs/DEMO.md"><img src="docs/assets/uart-replay.png" width="600" alt="K7 归档串口回放，展示 Stop、Left 两条路径的计时及归档 CIM_PASS"></a>
+<a href="docs/DEMO.md"><img src="docs/assets/uart-replay.png" width="600" alt="K7 归档板测结果，从串口记录解码四条计时及原始 CIM_PASS"></a>
 
-预览解码自 K7 50 MHz 的四次归档 UART 运行。[回放命令与原始串口记录](docs/DEMO.md)
+K7 归档板测的静态摘要，四条计时从 50 MHz 板测的 UART 记录解码。[回放命令与原始串口记录](docs/DEMO.md)
 
 ## 复现 KWS 子图
 

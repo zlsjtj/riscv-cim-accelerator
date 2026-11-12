@@ -22,9 +22,11 @@
       "../../rtl/cim_accel.sv",
       "../../rtl/cim_macro.sv",
       "../../rtl/requant.sv",
-      "../KWS_SUBGRAPH.md"
+      "../KWS_SUBGRAPH.md",
+      "../../fpga/cim_rv_system.sv",
+      "../../sim/ibex/cim_ibex_adapter.sv"
     ],
-    "control": "dashed with arrowheads",
+    "control": "Dashed CPU-to-controller MMIO link for START write and DONE read",
     "data": "solid with arrowheads",
     "scope": "Two independently submitted PW operations, with CPU DW in between.",
     "roles": [
@@ -33,7 +35,8 @@
       "banked input scratchpad",
       "digital CiM macro proxy",
       "result slots and INT32 rebuild",
-      "requantization and writeback"
+      "requantization and writeback",
+      "controller MMIO register interface"
     ]
   },
   "latency": {
@@ -86,7 +89,16 @@
       "banked input scratchpad",
       "digital CiM macro proxy",
       "INT8 writeback"
-    ]
+    ],
+    "narrow": {
+      "asset": "hero-narrow.svg",
+      "size": [
+        640,
+        160
+      ],
+      "viewport_max_px": 600,
+      "headline_font_px": 43
+    }
   },
   "uart_replay": {
     "size": [
@@ -99,6 +111,8 @@
     "decoded_against": "../evidence/kws_subgraph/k7_board.json",
     "evidence_state": "static replay of recorded UART from 2026-11-07",
     "clock_mhz": 50,
-    "display_decimals": 5
+    "display_decimals": 5,
+    "title": "Archived K7 results",
+    "subtitle": "Decoded from recorded UART · 50 MHz · 2026-11-07"
   }
 }

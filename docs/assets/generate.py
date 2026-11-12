@@ -84,9 +84,18 @@ def hero():
     return fig
 
 
+def hero_narrow():
+    fig = Figure(640, 160, "Low-bit compute measured on FPGA",
+                 "Compact banner with the same two lines as the desktop version.")
+    fig.rect(2, 2, 636, 156, INK, "#415069", 19)
+    fig.text(320, 68, "Low-bit compute.", 43, WHITE, 700, anchor="middle")
+    fig.text(320, 123, "Measured on FPGA.", 43, PALE_TEAL, 700, anchor="middle")
+    return fig
+
+
 def architecture():
     fig = Figure(840, 510, "RISC-V CiM system and KWS handoffs",
-                 "RISC-V controls the accelerator over MMIO. CPU depthwise runs between two "
+                 "RISC-V writes START and reads DONE through the controller MMIO interface. CPU depthwise runs between two "
                  "independently submitted pointwise tasks and exchanges tensors through shared SRAM.")
     fig.text(26, 43, "System architecture", 32, weight=700)
     fig.line([(479, 36), (521, 36)], TEAL, 3, arrow=True)
@@ -104,7 +113,7 @@ def architecture():
     fig.text(298, 207, "Weights + parameters", 17, MUTED)
     fig.line([(237, 168), (281, 168)], TEAL, 3, arrow=True, both=True)
 
-    fig.rect(543, 70, 271, 261)
+    fig.rect(543, 70, 271, 286)
     fig.text(558, 101, "CiM accelerator", 24, weight=700)
     stages = [(116, "Banked input scratchpad"), (166, "Digital CiM macro proxy"),
               (216, "Result slots / INT32 rebuild"), (266, "Requantize / write back")]
@@ -116,9 +125,11 @@ def architecture():
     fig.line([(489, 135), (557, 135)], TEAL, 3, arrow=True)
     fig.text(521, 124, "Input", 14, TEAL, anchor="middle")
     fig.line([(557, 285), (516, 285), (516, 207), (489, 207)], TEAL, 3, arrow=True)
-    fig.line([(131, 236), (131, 313), (543, 313)], BLUE, 3, dashed=True, arrow=True, both=True)
-    fig.text(252, 299, "START / DONE", 18, BLUE, mono=True)
-    fig.text(679, 323, "Reserve a slot before launch", 16, MUTED, anchor="middle")
+    fig.rect(557, 310, 243, 39, BLUE_BG, radius=7)
+    fig.text(679, 327, "Controller / MMIO", 19, BLUE, 700, anchor="middle")
+    fig.text(679, 343, "Reserve a slot before launch", 15, MUTED, anchor="middle")
+    fig.line([(131, 236), (131, 330), (557, 330)], BLUE, 3, dashed=True, arrow=True, both=True)
+    fig.text(252, 316, "START / DONE", 18, BLUE, mono=True)
 
     fig.text(26, 374, "KWS activation handoffs", 26, weight=700)
     for x, label, detail, extra, fill in [
@@ -183,11 +194,11 @@ def uart_replay(rows):
     fields = ("total_cycles", "pw1_cycles", "dw_cycles", "pw2_cycles", "pw1_core_cycles",
               "pw2_core_cycles", "mismatches")
 
-    fig = Figure(660, 339, "Recorded UART log replay",
+    fig = Figure(660, 339, "Archived K7 results",
                  "Four decoded K7 board timings from the archived UART transcript.")
     fig.rect(2, 2, 656, 335, INK, "#415069", 15)
-    fig.text(25, 43, "Recorded UART log replay", 33, WHITE, 700)
-    fig.text(26, 74, "Kintex-7 · 50 MHz · 2026-11-07", 23, PALE_BLUE)
+    fig.text(25, 43, "Archived K7 results", 33, WHITE, 700)
+    fig.text(26, 74, "Decoded from recorded UART · 50 MHz · 2026-11-07", 23, PALE_BLUE)
     fig.line([(26, 94), (634, 94)], "#536582", 1.5)
     for x, label, anchor in [(27, "INPUT", "start"), (141, "MODE", "start"),
                              (438, "CYCLES", "end"), (632, "ms", "end")]:
@@ -241,7 +252,7 @@ def main():
     from playwright.sync_api import sync_playwright
 
     rows = board_rows()
-    figures = [("hero", hero()), ("architecture", architecture()),
+    figures = [("hero", hero()), ("hero-narrow", hero_narrow()), ("architecture", architecture()),
                ("k7_subgraph_latency", latency(rows)), ("uart-replay", uart_replay(rows)),
                ("social-preview", social(rows))]
     with sync_playwright() as pw:

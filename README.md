@@ -1,6 +1,9 @@
 # RISC-V CiM Accelerator
 
-![Low-bit compute measured on FPGA, with a digital CiM macro proxy between a banked scratchpad and INT8 writeback](docs/assets/hero.svg)
+<picture>
+  <source media="(max-width: 600px)" srcset="docs/assets/hero-narrow.svg">
+  <img src="docs/assets/hero.svg" alt="Low-bit compute. Measured on FPGA.">
+</picture>
 
 RISC-V-controlled INT8 acceleration with a digital CiM macro proxy, open Ibex simulation, and Kintex-7 measurements.
 
@@ -16,9 +19,17 @@ The measured KWS subgraph runs pointwise (PW) → CPU depthwise (DW) → pointwi
 
 ## Quick Start
 
-Install the [open toolchain](docs/REPRODUCE.md#quick-start-with-the-open-cpu) on Ubuntu or WSL and run from the repository root.
+Reproduce the stable v0.4.0 functionality on Ubuntu 24.04 or WSL with Ubuntu 24.04. The latest showcase documentation is on [main](https://github.com/zlsjtj/riscv-cim-accelerator/tree/main).
 
 ~~~bash
+sudo apt-get update
+sudo apt-get install -y git verilator gcc-riscv64-unknown-elf g++ make libelf-dev python3-venv
+
+git clone --branch v0.4.0 --single-branch https://github.com/zlsjtj/riscv-cim-accelerator.git
+cd riscv-cim-accelerator
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r tools/requirements-ibex.txt
 python3 tools/run_ibex.py
 ~~~
 
@@ -43,15 +54,15 @@ The timer runs from restored input to the final output word becoming readable. I
 
 ## Architecture
 
-![The RISC-V CPU exchanges data with shared SRAM and controls the accelerator over MMIO. Two independent accelerator starts bracket CPU depthwise convolution.](docs/assets/architecture.svg)
+![The RISC-V CPU exchanges data with shared SRAM and writes START and reads DONE through the controller's MMIO interface. Two independent accelerator starts bracket CPU depthwise convolution.](docs/assets/architecture.svg)
 
 [Five-minute design walkthrough](docs/DESIGN_TALK.en.md) · [Detailed RTL architecture (中文)](docs/ARCHITECTURE.md)
 
 ## Demo
 
-<a href="docs/DEMO.md"><img src="docs/assets/uart-replay.png" width="600" alt="Recorded K7 UART replay showing Stop and Left in both execution modes, with the archived CIM_PASS line"></a>
+<a href="docs/DEMO.md"><img src="docs/assets/uart-replay.png" width="600" alt="Archived K7 results decoded from recorded UART, with four timings and the original CIM_PASS line"></a>
 
-The preview decodes four runs from the recorded K7 50 MHz UART log. [Replay command and original transcript](docs/DEMO.md)
+Static summary of four archived K7 runs, decoded from the recorded 50 MHz UART log. [Replay command and original transcript](docs/DEMO.md)
 
 ## Reproduce the KWS Subgraph
 

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="840" height="510" viewBox="0 0 840 510" role="img" aria-labelledby="title desc">
-<title id="title">RISC-V CiM system and KWS handoffs</title><desc id="desc">RISC-V controls the accelerator over MMIO. CPU depthwise runs between two independently submitted pointwise tasks and exchanges tensors through shared SRAM.</desc>
+<title id="title">RISC-V CiM system and KWS handoffs</title><desc id="desc">RISC-V writes START and reads DONE through the controller MMIO interface. CPU depthwise runs between two independently submitted pointwise tasks and exchanges tensors through shared SRAM.</desc>
 <rect x="0" y="0" width="840" height="510" rx="0" fill="#F6F8FB" stroke="none" stroke-width="1.5"/>
 <text x="26" y="43" fill="#152238" font-size="32" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">System architecture</text>
 <polyline points="479,36 521,36" fill="none" stroke="#0F766E" stroke-width="3" stroke-linejoin="round"/>
@@ -19,7 +19,7 @@
 <polyline points="237,168 281,168" fill="none" stroke="#0F766E" stroke-width="3" stroke-linejoin="round"/>
 <polygon points="281,168 272,164 272,172" fill="#0F766E"/>
 <polygon points="237,168 246,172 246,164" fill="#0F766E"/>
-<rect x="543" y="70" width="271" height="261" rx="12" fill="#FFFFFF" stroke="#D9E1EC" stroke-width="1.5"/>
+<rect x="543" y="70" width="271" height="286" rx="12" fill="#FFFFFF" stroke="#D9E1EC" stroke-width="1.5"/>
 <text x="558" y="101" fill="#152238" font-size="24" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">CiM accelerator</text>
 <rect x="557" y="116" width="243" height="38" rx="7" fill="#F6F8FB" stroke="#D9E1EC" stroke-width="1.5"/>
 <text x="679" y="142" fill="#152238" font-size="19" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="middle">Banked input scratchpad</text>
@@ -40,11 +40,13 @@
 <text x="521" y="124" fill="#0F766E" font-size="14" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="middle">Input</text>
 <polyline points="557,285 516,285 516,207 489,207" fill="none" stroke="#0F766E" stroke-width="3" stroke-linejoin="round"/>
 <polygon points="489,207 498,211 498,203" fill="#0F766E"/>
-<polyline points="131,236 131,313 543,313" fill="none" stroke="#2563EB" stroke-width="3" stroke-linejoin="round" stroke-dasharray="7 6"/>
-<polygon points="543,313 534,309 534,317" fill="#2563EB"/>
+<rect x="557" y="310" width="243" height="39" rx="7" fill="#EAF1FF" stroke="#D9E1EC" stroke-width="1.5"/>
+<text x="679" y="327" fill="#2563EB" font-size="19" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="middle">Controller / MMIO</text>
+<text x="679" y="343" fill="#526079" font-size="15" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="middle">Reserve a slot before launch</text>
+<polyline points="131,236 131,330 557,330" fill="none" stroke="#2563EB" stroke-width="3" stroke-linejoin="round" stroke-dasharray="7 6"/>
+<polygon points="557,330 548,326 548,334" fill="#2563EB"/>
 <polygon points="131,236 127,245 135,245" fill="#2563EB"/>
-<text x="252" y="299" fill="#2563EB" font-size="18" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">START / DONE</text>
-<text x="679" y="323" fill="#526079" font-size="16" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="middle">Reserve a slot before launch</text>
+<text x="252" y="316" fill="#2563EB" font-size="18" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">START / DONE</text>
 <text x="26" y="374" fill="#152238" font-size="26" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">KWS activation handoffs</text>
 <rect x="26" y="394" width="220" height="91" rx="12" fill="#EAF1FF" stroke="#D9E1EC" stroke-width="1.5"/>
 <text x="41" y="423" fill="#152238" font-size="23" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">PW (op2)</text>

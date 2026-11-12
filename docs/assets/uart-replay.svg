@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="660" height="339" viewBox="0 0 660 339" role="img" aria-labelledby="title desc">
-<title id="title">Recorded UART log replay</title><desc id="desc">Four decoded K7 board timings from the archived UART transcript.</desc>
+<title id="title">Archived K7 results</title><desc id="desc">Four decoded K7 board timings from the archived UART transcript.</desc>
 <rect x="0" y="0" width="660" height="339" rx="0" fill="#F6F8FB" stroke="none" stroke-width="1.5"/>
 <rect x="2" y="2" width="656" height="335" rx="15" fill="#152238" stroke="#415069" stroke-width="1.5"/>
-<text x="25" y="43" fill="#FFFFFF" font-size="33" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">Recorded UART log replay</text>
-<text x="26" y="74" fill="#BBD4FF" font-size="23" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Kintex-7 · 50 MHz · 2026-11-07</text>
+<text x="25" y="43" fill="#FFFFFF" font-size="33" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">Archived K7 results</text>
+<text x="26" y="74" fill="#BBD4FF" font-size="23" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Decoded from recorded UART · 50 MHz · 2026-11-07</text>
 <polyline points="26,94 634,94" fill="none" stroke="#536582" stroke-width="1.5" stroke-linejoin="round"/>
 <text x="27" y="125" fill="#BBD4FF" font-size="24" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">INPUT</text>
 <text x="141" y="125" fill="#BBD4FF" font-size="24" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">MODE</text>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="160" viewBox="0 0 640 160" role="img" aria-labelledby="title desc">
+<title id="title">Low-bit compute measured on FPGA</title><desc id="desc">Compact banner with the same two lines as the desktop version.</desc>
+<rect x="0" y="0" width="640" height="160" rx="0" fill="#F6F8FB" stroke="none" stroke-width="1.5"/>
+<rect x="2" y="2" width="636" height="156" rx="19" fill="#152238" stroke="#415069" stroke-width="1.5"/>
+<text x="320" y="68" fill="#FFFFFF" font-size="43" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="middle">Low-bit compute.</text>
+<text x="320" y="123" fill="#95E5D5" font-size="43" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="middle">Measured on FPGA.</text>
+</svg>

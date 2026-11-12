@@ -5,7 +5,7 @@
 [GitHub Release](https://github.com/zlsjtj/riscv-cim-accelerator/releases/tag/v0.4.0) ·
 [英文首页](../README.md) · [中文首页](../README.zh-CN.md) · [复现入口](REPRODUCE.md)
 
-首页展示包含简版架构与性能图、真实串口归档回放和双语讲解入口。
+main 首页包含窄屏横幅、架构与性能图、UART 归档摘要和双语讲解入口。功能复现使用 v0.4.0。
 [UART 回放](DEMO.md) · [英文设计讲解](DESIGN_TALK.en.md) · [中文设计讲解](DESIGN_TALK.md)
 
 真实 KWS 子图使用固定 INT8 模型的 PW(op2) → CPU DW(op3) → PW(op4)。
