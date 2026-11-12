@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="288" viewBox="0 0 1280 288" role="img" aria-labelledby="title desc">
+<title id="title">Low-bit compute measured on FPGA</title><desc id="desc">A banked scratchpad feeds the digital CiM macro proxy, followed by INT8 writeback.</desc>
+<rect x="0" y="0" width="1280" height="288" rx="0" fill="#F6F8FB" stroke="none" stroke-width="1.5"/>
+<rect x="2" y="2" width="1276" height="284" rx="25" fill="#152238" stroke="#415069" stroke-width="1.5"/>
+<text x="54" y="121" fill="#FFFFFF" font-size="63" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">Low-bit compute.</text>
+<text x="54" y="194" fill="#95E5D5" font-size="63" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">Measured on FPGA.</text>
+<polyline points="696,55 696,233" fill="none" stroke="#415069" stroke-width="2" stroke-linejoin="round"/>
+<rect x="744" y="48" width="486" height="51" rx="9" fill="#202F49" stroke="#415069" stroke-width="1.5"/>
+<rect x="744" y="119" width="486" height="51" rx="9" fill="#273C60" stroke="#637DAB" stroke-width="1.5"/>
+<rect x="744" y="190" width="486" height="51" rx="9" fill="#202F49" stroke="#415069" stroke-width="1.5"/>
+<text x="987" y="83" fill="#FFFFFF" font-size="32" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="middle">Banked input scratchpad</text>
+<text x="987" y="154" fill="#FFFFFF" font-size="32" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="middle">Digital CiM macro proxy</text>
+<text x="987" y="225" fill="#FFFFFF" font-size="32" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="middle">INT8 writeback</text>
+<polyline points="987,99 987,119" fill="none" stroke="#95E5D5" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="987,119 991,110 983,110" fill="#95E5D5"/>
+<polyline points="987,170 987,190" fill="none" stroke="#95E5D5" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="987,190 991,181 983,181" fill="#95E5D5"/>
+</svg>

@@ -1,38 +1,40 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="840" height="433" viewBox="0 0 840 433" role="img" aria-labelledby="title desc">
-<title id="title">K7 end-to-end subgraph latency</title><desc id="desc">Zero-based bars show CPU and hybrid latency in milliseconds for Stop and Left. Both run the same three operators on the same 50 MHz board image.</desc>
-<rect x="0" y="0" width="840" height="433" rx="0" fill="#F6F8FB" stroke="none" stroke-width="1.5"/>
-<text x="30" y="41" fill="#152238" font-size="29" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">K7 subgraph latency</text>
-<text x="30" y="69" fill="#526079" font-size="17" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">PW (op2) → CPU DW (op3) → PW (op4)  ·  50 MHz</text>
-<polyline points="174.0,111 174.0,338" fill="none" stroke="#9BAAC0" stroke-width="1.5" stroke-linejoin="round"/>
-<text x="174.0" y="363" fill="#526079" font-size="15" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">0</text>
-<polyline points="257.2,111 257.2,338" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
-<text x="257.2" y="363" fill="#526079" font-size="15" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">20</text>
-<polyline points="340.4,111 340.4,338" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
-<text x="340.4" y="363" fill="#526079" font-size="15" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">40</text>
-<polyline points="423.6,111 423.6,338" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
-<text x="423.6" y="363" fill="#526079" font-size="15" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">60</text>
-<polyline points="506.8,111 506.8,338" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
-<text x="506.8" y="363" fill="#526079" font-size="15" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">80</text>
-<polyline points="590.0,111 590.0,338" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
-<text x="590.0" y="363" fill="#526079" font-size="15" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">100</text>
-<polyline points="673.2,111 673.2,338" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
-<text x="673.2" y="363" fill="#526079" font-size="15" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">120</text>
-<polyline points="756.4,111 756.4,338" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
-<text x="756.4" y="363" fill="#526079" font-size="15" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">140</text>
-<text x="785" y="363" fill="#526079" font-size="15" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">ms</text>
-<text x="30" y="137" fill="#152238" font-size="20" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">Stop</text>
-<text x="157" y="141" fill="#526079" font-size="17" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="end">CPU</text>
-<rect x="174" y="122" width="531.2439808" height="26" rx="4" fill="#526079" stroke="none" stroke-width="1.5"/>
-<text x="715.2439808" y="141" fill="#152238" font-size="16" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">127.70</text>
-<text x="157" y="184" fill="#526079" font-size="17" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="end">Hybrid</text>
-<rect x="174" y="165" width="77.7037248" height="26" rx="4" fill="#0F766E" stroke="none" stroke-width="1.5"/>
-<text x="261.70372480000003" y="184" fill="#152238" font-size="16" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">18.68</text>
-<text x="30" y="259" fill="#152238" font-size="20" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">Left</text>
-<text x="157" y="263" fill="#526079" font-size="17" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="end">CPU</text>
-<rect x="174" y="244" width="531.2056256" height="26" rx="4" fill="#526079" stroke="none" stroke-width="1.5"/>
-<text x="715.2056256" y="263" fill="#152238" font-size="16" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">127.69</text>
-<text x="157" y="306" fill="#526079" font-size="17" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="end">Hybrid</text>
-<rect x="174" y="287" width="77.7281856" height="26" rx="4" fill="#0F766E" stroke="none" stroke-width="1.5"/>
-<text x="261.7281856" y="306" fill="#152238" font-size="16" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">18.68</text>
-<text x="30" y="402" fill="#526079" font-size="15" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Same bitstream 43494d4a, ELF and SRAM image · lower is faster</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="840" height="388" viewBox="0 0 840 388" role="img" aria-labelledby="title desc">
+<title id="title">K7 end-to-end subgraph latency</title><desc id="desc">Stop and Left use a shared zero-based axis. Hybrid is 6.84 and 6.83 times faster than scalar RV32IM C on the same 50 MHz board image.</desc>
+<rect x="0" y="0" width="840" height="388" rx="0" fill="#F6F8FB" stroke="none" stroke-width="1.5"/>
+<text x="28" y="45" fill="#152238" font-size="33" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">K7 subgraph latency</text>
+<text x="28" y="78" fill="#526079" font-size="21" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Three operators · 50 MHz · vs. scalar RV32IM C</text>
+<polyline points="211.0,105 211.0,307" fill="none" stroke="#9BAAC0" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="211.0" y="335" fill="#526079" font-size="19" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">0</text>
+<polyline points="292.0,105 292.0,307" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="292.0" y="335" fill="#526079" font-size="19" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">20</text>
+<polyline points="373.0,105 373.0,307" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="373.0" y="335" fill="#526079" font-size="19" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">40</text>
+<polyline points="454.0,105 454.0,307" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="454.0" y="335" fill="#526079" font-size="19" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">60</text>
+<polyline points="535.0,105 535.0,307" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="535.0" y="335" fill="#526079" font-size="19" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">80</text>
+<polyline points="616.0,105 616.0,307" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="616.0" y="335" fill="#526079" font-size="19" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">100</text>
+<polyline points="697.0,105 697.0,307" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="697.0" y="335" fill="#526079" font-size="19" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">120</text>
+<polyline points="778.0,105 778.0,307" fill="none" stroke="#D9E1EC" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="778.0" y="335" fill="#526079" font-size="19" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="middle">140</text>
+<text x="802" y="335" fill="#526079" font-size="19" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">ms</text>
+<text x="28" y="138" fill="#152238" font-size="24" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">Stop</text>
+<text x="28" y="177" fill="#0F766E" font-size="22" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">6.84×</text>
+<text x="193" y="139" fill="#526079" font-size="21" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="end">Scalar C</text>
+<rect x="211" y="119" width="517.1966639999999" height="27" rx="4" fill="#526079" stroke="none" stroke-width="1.5"/>
+<text x="737.1966639999999" y="139" fill="#152238" font-size="20" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">127.703</text>
+<text x="193" y="180" fill="#526079" font-size="21" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="end">Hybrid</text>
+<rect x="211" y="160" width="75.649059" height="27" rx="4" fill="#0F766E" stroke="none" stroke-width="1.5"/>
+<text x="295.64905899999997" y="180" fill="#152238" font-size="20" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">18.679</text>
+<text x="28" y="247" fill="#152238" font-size="24" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">Left</text>
+<text x="28" y="286" fill="#0F766E" font-size="22" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">6.83×</text>
+<text x="193" y="248" fill="#526079" font-size="21" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="end">Scalar C</text>
+<rect x="211" y="228" width="517.159323" height="27" rx="4" fill="#526079" stroke="none" stroke-width="1.5"/>
+<text x="737.159323" y="248" fill="#152238" font-size="20" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">127.694</text>
+<text x="193" y="289" fill="#526079" font-size="21" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="end">Hybrid</text>
+<rect x="211" y="269" width="75.672873" height="27" rx="4" fill="#0F766E" stroke="none" stroke-width="1.5"/>
+<text x="295.672873" y="289" fill="#152238" font-size="20" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">18.685</text>
+<text x="28" y="367" fill="#526079" font-size="19" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Same bitstream, firmware and SRAM image</text>
 </svg>

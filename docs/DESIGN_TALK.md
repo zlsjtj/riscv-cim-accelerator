@@ -1,5 +1,7 @@
 # 五分钟设计讲解
 
+[English walkthrough](DESIGN_TALK.en.md) · [复现指南](REPRODUCE.md)
+
 ## 0:00–0:45 · 从真实输入走一遍 SRAM
 
 tensor23 从 8,000 字节输入备份恢复到 A。PW(op2) 写 B，RV32IM CPU

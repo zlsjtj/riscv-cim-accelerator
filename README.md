@@ -1,60 +1,68 @@
 # RISC-V CiM Accelerator
 
-RISC-V-controlled INT8 acceleration with a synthesizable CiM macro proxy, open Ibex simulation, and a K7-validated KWS subgraph.
+![Low-bit compute measured on FPGA, with a digital CiM macro proxy between a banked scratchpad and INT8 writeback](docs/assets/hero.svg)
 
-[简体中文](README.zh-CN.md) · [Stable release v0.4.0](https://github.com/zlsjtj/riscv-cim-accelerator/releases/tag/v0.4.0) · [Apache-2.0](LICENSE) · [![Public RTL regression](https://github.com/zlsjtj/riscv-cim-accelerator/actions/workflows/rtl.yml/badge.svg?branch=main)](https://github.com/zlsjtj/riscv-cim-accelerator/actions/workflows/rtl.yml)
+RISC-V-controlled INT8 acceleration with a digital CiM macro proxy, open Ibex simulation, and Kintex-7 measurements.
 
-- **6.83–6.84× speedup** for the three-operator subgraph on K7 at 50 MHz, measured against the same-firmware scalar RV32IM C path. [Board data](docs/evidence/kws_subgraph/k7_board.json)
-- **50 MHz on Kintex-7**, with both paths measured on one bitstream and one ELF. [Board setup and timing](docs/evidence/kws_subgraph/k7_build.json)
-- **96,000 diagnostic bytes matched** TensorFlow 2.16.1 across two samples, two paths and three captured tensors per run. [Per-tensor results](docs/evidence/kws_subgraph/k7_board.json)
+[简体中文](README.zh-CN.md) · [v0.4.0 Release](https://github.com/zlsjtj/riscv-cim-accelerator/releases/tag/v0.4.0) · [Apache-2.0](LICENSE) · [![Public RTL regression](https://github.com/zlsjtj/riscv-cim-accelerator/actions/workflows/rtl.yml/badge.svg?branch=main)](https://github.com/zlsjtj/riscv-cim-accelerator/actions/workflows/rtl.yml)
 
-[Quick Start](#quick-start) · [Architecture](#architecture) · [Board Results](#board-results) · [Design Walkthrough](docs/DESIGN_TALK.md)
+- **6.83–6.84× speedup** on K7 at 50 MHz. [Board results](#measured-results)
+- **96,000 diagnostic bytes**, zero mismatches. [Per-tensor evidence](docs/evidence/kws_subgraph/k7_board.json)
+- **Open Ibex** RTL simulation, with no board required. [Setup](docs/REPRODUCE.md#quick-start-with-the-open-cpu)
+
+The measured KWS subgraph runs pointwise (PW) → CPU depthwise (DW) → pointwise. Both paths use the same bitstream and firmware. The baseline is scalar RV32IM C. [Original board JSON](docs/evidence/kws_subgraph/k7_board.json)
+
+[Quick Start](#quick-start) · [Results](#measured-results) · [Architecture](#architecture) · [Demo](#demo) · [Design Walkthrough](docs/DESIGN_TALK.en.md)
 
 ## Quick Start
 
-Use Ubuntu or WSL with the [public Ibex toolchain](docs/IBEX.md#开放-ibex-整机复现). From the repository root:
+Install the [open toolchain](docs/REPRODUCE.md#quick-start-with-the-open-cpu) on Ubuntu or WSL and run from the repository root.
 
 ~~~bash
 python3 tools/run_ibex.py
 ~~~
 
-Expect `PASS Ibex M=1`, two verified INT8 output files and a result JSON under `build/ibex/M1/`. This is a synthetic two-layer smoke test with real CPU execution in RTL simulation. [Smoke-test outputs](docs/IBEX.md)
+Expect `PASS Ibex M=1` and two verified INT8 outputs plus `result.json` in `build/ibex/M1/`. This smoke test runs a synthetic two-layer workload on the Ibex RTL CPU.
 
-## Board Results
+## Measured Results
 
-![Zero-based latency bars for Stop and Left comparing scalar RV32IM C with hybrid execution on the same K7 at 50 MHz](docs/assets/k7_subgraph_latency.svg)
+![K7 50 MHz subgraph latency for Stop and Left on a shared 0 to 140 millisecond scale, with 6.84 and 6.83 times speedup](docs/assets/k7_subgraph_latency.svg)
 
-| Published MFCC input | Scalar RV32IM C | Hybrid CiM / CPU / CiM | Latency ratio |
+| MFCC input | Scalar C (ms) | Hybrid (ms) | Speedup |
 |---|---:|---:|---:|
-| Stop | 127.703 ms | 18.679 ms | 6.84× |
-| Left | 127.694 ms | 18.685 ms | 6.83× |
+| Stop | 127.703 | 18.679 | 6.84× |
+| Left | 127.694 | 18.685 | 6.83× |
 
-The two PW layers and CPU DW run from restored input to the final output word becoming readable. The timer includes submissions, polling and CPU work. Comparison and printing follow the timing window. Each timed run checks 8,000 final bytes. The separate diagnostic runs capture all three outputs, totaling 96,000 checked bytes. CPU DW accounts for **94.94%** of hybrid latency. [Raw JSON](docs/evidence/kws_subgraph/k7_board.json) · [Stage cycles and measurement scope](docs/KWS_SUBGRAPH.md#k7-50-mhz-实测)
+The timer runs from restored input to the final output word becoming readable. It includes submissions, polling, CPU DW and handoffs. Checks and printing follow the window. Each timed run checks 8,000 final bytes. Separate diagnostics compare two inputs × two paths × three captured tensors × 8,000 bytes against TensorFlow 2.16.1. [Board setup](docs/evidence/kws_subgraph/k7_build.json) · [Stage cycles and timing window (中文)](docs/KWS_SUBGRAPH.md#k7-50-mhz-实测)
+
+## Engineering Highlights
+
+- **Low-bit INT8 reconstruction.** The digital macro proxy consumes four activation bit planes. The controller combines unsigned low and signed high weight nibbles, then merges the two activation slices into INT32 before per-channel requantization. An independent integer MAC checks the numerical contract. [Macro](rtl/cim_macro.sv) · [Controller](rtl/cim_accel.sv) · [Reference](tools/reference.py)
+- **Scheduling under backpressure.** Macro results arrive without a ready handshake, so the controller reserves a result slot before launch. A banked input scratchpad replays input across output tiles. A context stays live until its final SRAM write commits. [Controller](rtl/cim_accel.sv) · [Timing and regression (中文)](docs/SRAM_TURNAROUND.md#优化合同与覆盖) · [Banked replay (中文)](docs/BANKED_REPLAY.md)
+- **Measured CPU–accelerator handoff.** CPU DW consumes the actual PW1 output from SRAM, then PW2 consumes the actual DW output. One firmware runs both paths and captures intermediate tensors in a separate diagnostic pass. [Firmware](sw/kws_main.c) · [Subgraph (中文)](docs/KWS_SUBGRAPH.md) · [UART](docs/evidence/kws_subgraph/k7_board_uart.txt) · [JSON](docs/evidence/kws_subgraph/k7_board.json)
 
 ## Architecture
 
-![CPU and accelerator share SRAM, with MMIO control and two separate pointwise starts around CPU depthwise](docs/assets/architecture.svg)
+![The RISC-V CPU exchanges data with shared SRAM and controls the accelerator over MMIO. Two independent accelerator starts bracket CPU depthwise convolution.](docs/assets/architecture.svg)
 
-- **Low-bit arithmetic.** The digital macro proxy consumes bit planes and returns native partial sums. The controller combines signed and unsigned nibbles into INT32 accumulators.
-- **Storage and backpressure.** The controller reserves result space before a macro launch, replays input from a banked scratchpad, and releases an output context after its last SRAM write is accepted.
-- **Quantization and handoff.** Per-channel integer double rounding produces INT8. For the KWS path, the CPU reads PW1 output in B, runs DW into A, then starts PW2 on the actual contents of A. [RTL architecture](docs/ARCHITECTURE.md) · [Five-minute walkthrough](docs/DESIGN_TALK.md)
+[Five-minute design walkthrough](docs/DESIGN_TALK.en.md) · [Detailed RTL architecture (中文)](docs/ARCHITECTURE.md)
+
+## Demo
+
+<a href="docs/DEMO.md"><img src="docs/assets/uart-replay.png" width="600" alt="Recorded K7 UART replay showing Stop and Left in both execution modes, with the archived CIM_PASS line"></a>
+
+The preview decodes four runs from the recorded K7 50 MHz UART log. [Replay command and original transcript](docs/DEMO.md)
 
 ## Reproduce the KWS Subgraph
 
-Prepare the fixed model and the two published MFCC samples with TensorFlow 2.16.1, then run the open Ibex system. The diagnostic option runs a separate capture after the timed paths and verifies tensor24, tensor25 and tensor26. [Dependencies, commands and outputs](docs/REPRODUCE.md)
-
-The K7 path uses Vivado 2023.2, an authorized local JYDD CPU/UART tree, an RV32IM toolchain, the board, JTAG and UART. [Board commands](docs/KWS_SUBGRAPH.md#复现) · [Recorded UART log replay](docs/DEMO.md)
+Run the fixed model with published Stop and Left inputs in Ibex. The K7 flow uses Vivado 2023.2, authorized local JYDD CPU/UART sources and the supported board. [English reproduction guide](docs/REPRODUCE.md) · [K7 commands (中文)](docs/KWS_SUBGRAPH.md#复现)
 
 | Platform | Verified scope |
 |---|---|
-| [K7 FPGA at 50 MHz](docs/KWS_SUBGRAPH.md#k7-50-mhz-实测) | Real three-operator subgraph, two samples and both paths, with timing and byte checks |
-| [Ibex RTL simulation](docs/KWS_SUBGRAPH.md#ibex-rtl-仿真) | RV32IM firmware executes both real subgraph paths, plus a separate synthetic smoke test |
-| [Standalone RTL CI](.github/workflows/rtl.yml) | Official integer reference checks, unit tests and INT8 pointwise regression with fixed and variable memory latency |
+| [Kintex-7 (中文)](docs/KWS_SUBGRAPH.md#k7-50-mhz-实测) | Fixed KWS subgraph, both paths, timing and byte checks |
+| [Open Ibex](docs/REPRODUCE.md#real-kws-subgraph-in-ibex) | Real RV32IM execution for both KWS paths and the synthetic M1 smoke test |
+| [Standalone RTL CI](.github/workflows/rtl.yml) | Integer reference, units and INT8 pointwise regression with fixed and variable memory latency |
 
-| Explore | Files |
-|---|---|
-| Hardware | [Controller](rtl/cim_accel.sv), [macro proxy](rtl/cim_macro.sv), [requantizer](rtl/requant.sv) |
-| Software and tools | [KWS firmware](sw/kws_main.c), [driver](sw/cim.c), [fixture preparation](tools/prepare_kws.py) |
-| Evidence and history | [Current status](docs/STATUS.md), [development history](docs/STATUS_HISTORY.md), [release notes](docs/RELEASE_v0.4.0.md) |
+[RTL](rtl/) · [Firmware](sw/) · [Fixture preparation](tools/prepare_kws.py) · [Status (中文)](docs/STATUS.md) · [History (中文)](docs/STATUS_HISTORY.md)
 
-The validated scope is a fixed three-operator KWS subgraph and a digital macro proxy. Optional follow-up work includes the CPU DW kernel, more inputs and a higher clock. Project code is [Apache-2.0](LICENSE). External sources retain their own terms. [Third-party sources and terms](docs/THIRD_PARTY.md)
+Project code uses [Apache-2.0](LICENSE). External sources retain their own terms. [Third-party sources and terms (中文)](docs/THIRD_PARTY.md)

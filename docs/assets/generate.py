@@ -13,8 +13,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SOURCE = HERE.parent / "evidence/kws_subgraph/k7_board.json"
+UART = SOURCE.with_name("k7_board_uart.txt")
+CYCLES_PER_MS = 50_000
 INK, MUTED, BLUE, TEAL, BG, LINE = "#152238", "#526079", "#2563EB", "#0F766E", "#F6F8FB", "#D9E1EC"
 WHITE, BLUE_BG, TEAL_BG = "#FFFFFF", "#EAF1FF", "#E4F3F0"
+PALE_BLUE, PALE_TEAL = "#BBD4FF", "#95E5D5"
 SANS = "Arial, Liberation Sans, sans-serif"
 MONO = "Consolas, Liberation Mono, monospace"
 
@@ -63,54 +66,73 @@ class Figure:
         return path
 
 
+def hero():
+    fig = Figure(1280, 288, "Low-bit compute measured on FPGA",
+                 "A banked scratchpad feeds the digital CiM macro proxy, followed by INT8 writeback.")
+    fig.rect(2, 2, 1276, 284, INK, "#415069", 25)
+    fig.text(54, 121, "Low-bit compute.", 63, WHITE, 700)
+    fig.text(54, 194, "Measured on FPGA.", 63, PALE_TEAL, 700)
+    fig.line([(696, 55), (696, 233)], "#415069", 2)
+    fig.rect(744, 48, 486, 51, "#202F49", "#415069", 9)
+    fig.rect(744, 119, 486, 51, "#273C60", "#637DAB", 9)
+    fig.rect(744, 190, 486, 51, "#202F49", "#415069", 9)
+    for label, y in [("Banked input scratchpad", 83), ("Digital CiM macro proxy", 154),
+                     ("INT8 writeback", 225)]:
+        fig.text(987, y, label, 32, WHITE, 700, anchor="middle")
+    for y in (99, 170):
+        fig.line([(987, y), (987, y+20)], PALE_TEAL, 3, arrow=True)
+    return fig
+
+
 def architecture():
-    fig = Figure(840, 560, "RISC-V CiM system and KWS handoffs",
-                 "A RISC-V CPU controls a shared-SRAM accelerator over MMIO. CPU depthwise "
-                 "runs between two separately submitted pointwise tasks and exchanges tensors in SRAM.")
-    fig.text(30, 41, "System architecture", 29, weight=700)
-    fig.text(30, 69, "Control, shared storage and the three-operator KWS path", 17, MUTED)
-    fig.line([(529, 61), (563, 61)], TEAL, 3, arrow=True)
-    fig.text(572, 66, "Data", 14, MUTED)
-    fig.line([(644, 61), (679, 61)], BLUE, 2.5, dashed=True, arrow=True)
-    fig.text(688, 66, "MMIO control", 14, MUTED)
+    fig = Figure(840, 510, "RISC-V CiM system and KWS handoffs",
+                 "RISC-V controls the accelerator over MMIO. CPU depthwise runs between two "
+                 "independently submitted pointwise tasks and exchanges tensors through shared SRAM.")
+    fig.text(26, 43, "System architecture", 32, weight=700)
+    fig.line([(479, 36), (521, 36)], TEAL, 3, arrow=True)
+    fig.text(533, 43, "Data", 20, MUTED)
+    fig.line([(632, 36), (675, 36)], BLUE, 3, dashed=True, arrow=True)
+    fig.text(687, 43, "MMIO control", 20, MUTED)
 
-    fig.rect(30, 127, 210, 132, BLUE_BG)
-    fig.text(46, 163, "RISC-V CPU", 23, weight=700)
-    fig.text(46, 191, "Ibex: public simulation", 16, MUTED)
-    fig.text(46, 219, "K7: JYDD CPU", 16, MUTED)
-    fig.rect(296, 127, 205, 132, TEAL_BG)
-    fig.text(312, 163, "Shared SRAM", 23, weight=700)
-    fig.text(312, 191, "Activations A / B", 16, MUTED)
-    fig.text(312, 219, "Weights + quantization", 16, MUTED)
-    fig.line([(240, 196), (296, 196)], TEAL, 3, arrow=True, both=True)
+    fig.rect(26, 104, 211, 132, BLUE_BG)
+    fig.text(42, 142, "RISC-V CPU", 25, weight=700)
+    fig.text(42, 176, "Ibex: open simulation", 18, MUTED)
+    fig.text(42, 207, "K7: JYDD CPU", 18, MUTED)
+    fig.rect(281, 104, 208, 132, TEAL_BG)
+    fig.text(298, 142, "Shared SRAM", 25, weight=700)
+    fig.text(298, 176, "Activations A / B", 19, MUTED)
+    fig.text(298, 207, "Weights + parameters", 17, MUTED)
+    fig.line([(237, 168), (281, 168)], TEAL, 3, arrow=True, both=True)
 
-    fig.rect(558, 98, 252, 272)
-    fig.text(574, 127, "CiM accelerator", 22, weight=700)
-    for y, label in [(142, "Banked input cache"), (191, "Digital CiM macro proxy"),
-                     (240, "Result slots / rebuild INT32"), (289, "Quantize and write back")]:
-        fig.rect(573, y, 222, 37, BLUE_BG if y == 191 else BG, radius=7)
-        fig.text(684, y+24, label, 15, weight=700 if y == 191 else 400, anchor="middle")
-    for y in (179, 228, 277):
-        fig.line([(684, y), (684, y+12)], TEAL, 2, arrow=True)
-    fig.line([(501, 159), (573, 159)], TEAL, 3, arrow=True)
-    fig.line([(573, 309), (530, 309), (530, 228), (501, 228)], TEAL, 3, arrow=True)
-    fig.line([(135, 259), (135, 349), (558, 349)], BLUE, 2.5, dashed=True, arrow=True, both=True)
-    fig.text(259, 337, "START / DONE", 15, BLUE, mono=True)
-    fig.text(684, 350, "Reserve a slot before macro launch", 13, MUTED, anchor="middle")
+    fig.rect(543, 70, 271, 261)
+    fig.text(558, 101, "CiM accelerator", 24, weight=700)
+    stages = [(116, "Banked input scratchpad"), (166, "Digital CiM macro proxy"),
+              (216, "Result slots / INT32 rebuild"), (266, "Requantize / write back")]
+    for y, label in stages:
+        fig.rect(557, y, 243, 38, BLUE_BG if y == 166 else BG, radius=7)
+        fig.text(679, y+26, label, 19, weight=700 if y == 166 else 400, anchor="middle")
+    for y in (154, 204, 254):
+        fig.line([(679, y), (679, y+12)], TEAL, 2.5, arrow=True)
+    fig.line([(489, 135), (557, 135)], TEAL, 3, arrow=True)
+    fig.text(521, 124, "Input", 14, TEAL, anchor="middle")
+    fig.line([(557, 285), (516, 285), (516, 207), (489, 207)], TEAL, 3, arrow=True)
+    fig.line([(131, 236), (131, 313), (543, 313)], BLUE, 3, dashed=True, arrow=True, both=True)
+    fig.text(252, 299, "START / DONE", 18, BLUE, mono=True)
+    fig.text(679, 323, "Reserve a slot before launch", 16, MUTED, anchor="middle")
 
-    fig.text(30, 411, "KWS data in the same SRAM buffers", 21, weight=700)
+    fig.text(26, 374, "KWS activation handoffs", 26, weight=700)
     for x, label, detail, extra, fill in [
-        (30, "PW (op2)", "CiM START #1", "Reads A · tensor23", BLUE_BG),
-        (315, "DW (op3)", "RISC-V CPU", "Reads B, writes A", TEAL_BG),
-        (600, "PW (op4)", "CiM START #2", "Writes B · tensor26", BLUE_BG),
+        (26, "PW (op2)", "CiM START #1", "Reads A", BLUE_BG),
+        (310, "DW (op3)", "RISC-V CPU", "Reads B, writes A", TEAL_BG),
+        (594, "PW (op4)", "CiM START #2", "Writes B", BLUE_BG),
     ]:
-        fig.rect(x, 429, 210, 101, fill)
-        fig.text(x+15, 456, label, 21, weight=700)
-        fig.text(x+15, 482, detail, 16, MUTED)
-        fig.text(x+15, 507, extra, 15, MUTED)
-    for x, label in [(240, "B"), (525, "A")]:
-        fig.line([(x, 485), (x+75, 485)], TEAL, 3, arrow=True)
-        fig.text(x+37, 471, label, 17, TEAL, weight=700, anchor="middle", mono=True)
+        fig.rect(x, 394, 220, 91, fill)
+        fig.text(x+15, 423, label, 23, weight=700)
+        fig.text(x+15, 450, detail, 19, MUTED)
+        fig.text(x+15, 474, extra, 18, MUTED)
+    for x, label in [(246, "B"), (530, "A")]:
+        fig.line([(x, 448), (x+64, 448)], TEAL, 3, arrow=True)
+        fig.text(x+32, 434, label, 21, TEAL, weight=700, anchor="middle", mono=True)
     return fig
 
 
@@ -127,25 +149,64 @@ def board_rows():
 
 
 def latency(rows):
-    fig = Figure(840, 433, "K7 end-to-end subgraph latency",
-                 "Zero-based bars show CPU and hybrid latency in milliseconds for Stop and Left. "
-                 "Both run the same three operators on the same 50 MHz board image.")
-    fig.text(30, 41, "K7 subgraph latency", 29, weight=700)
-    fig.text(30, 69, "PW (op2) → CPU DW (op3) → PW (op4)  ·  50 MHz", 17, MUTED)
-    x0, scale = 174, 4.16
+    fig = Figure(840, 388, "K7 end-to-end subgraph latency",
+                 "Stop and Left use a shared zero-based axis. Hybrid is 6.84 and 6.83 times "
+                 "faster than scalar RV32IM C on the same 50 MHz board image.")
+    fig.text(28, 45, "K7 subgraph latency", 33, weight=700)
+    fig.text(28, 78, "Three operators · 50 MHz · vs. scalar RV32IM C", 21, MUTED)
+    x0, scale = 211, 4.05
     for tick in range(0, 141, 20):
         x = x0 + tick * scale
-        fig.line([(x, 111), (x, 338)], "#9BAAC0" if tick == 0 else LINE, 1.5)
-        fig.text(x, 363, str(tick), 15, MUTED, anchor="middle", mono=True)
-    fig.text(785, 363, "ms", 15, MUTED, mono=True)
-    for case, sample, top in [(0, "Stop", 122), (1, "Left", 244)]:
-        fig.text(30, top+15, sample, 20, weight=700)
-        for mode, label, color, y in [("cpu_only", "CPU", MUTED, top), ("hybrid", "Hybrid", TEAL, top+43)]:
-            ms = rows[case, mode]["total_cycles"] / 50_000
-            fig.text(157, y+19, label, 17, MUTED, anchor="end")
-            fig.rect(x0, y, ms*scale, 26, color, "none", 4)
-            fig.text(x0+ms*scale+10, y+19, f"{ms:.2f}", 16, INK, 700, mono=True)
-    fig.text(30, 402, "Same bitstream 43494d4a, ELF and SRAM image · lower is faster", 15, MUTED)
+        fig.line([(x, 105), (x, 307)], "#9BAAC0" if tick == 0 else LINE, 1.5)
+        fig.text(x, 335, str(tick), 19, MUTED, anchor="middle", mono=True)
+    fig.text(802, 335, "ms", 19, MUTED, mono=True)
+    for case, sample, top in [(0, "Stop", 119), (1, "Left", 228)]:
+        cpu = rows[case, "cpu_only"]["total_cycles"]
+        hybrid = rows[case, "hybrid"]["total_cycles"]
+        fig.text(28, top+19, sample, 24, weight=700)
+        fig.text(28, top+58, f"{cpu/hybrid:.2f}×", 22, TEAL, 700, mono=True)
+        for cycles, label, color, y in [(cpu, "Scalar C", MUTED, top),
+                                        (hybrid, "Hybrid", TEAL, top+41)]:
+            ms = cycles / CYCLES_PER_MS
+            fig.text(193, y+20, label, 21, MUTED, anchor="end")
+            fig.rect(x0, y, ms*scale, 27, color, "none", 4)
+            fig.text(x0+ms*scale+9, y+20, f"{ms:.3f}", 20, INK, 700, mono=True)
+    fig.text(28, 367, "Same bitstream, firmware and SRAM image", 19, MUTED)
+    return fig
+
+
+def uart_replay(rows):
+    transcript = UART.read_text(encoding="ascii").splitlines()
+    assert transcript[-1] == "CIM_PASS"
+    result_lines = [line.split()[1:] for line in transcript if line.startswith("KWS_RESULT ")]
+    assert len(result_lines) == len(rows)
+    fields = ("total_cycles", "pw1_cycles", "dw_cycles", "pw2_cycles", "pw1_core_cycles",
+              "pw2_core_cycles", "mismatches")
+
+    fig = Figure(660, 339, "Recorded UART log replay",
+                 "Four decoded K7 board timings from the archived UART transcript.")
+    fig.rect(2, 2, 656, 335, INK, "#415069", 15)
+    fig.text(25, 43, "Recorded UART log replay", 33, WHITE, 700)
+    fig.text(26, 74, "Kintex-7 · 50 MHz · 2026-11-07", 23, PALE_BLUE)
+    fig.line([(26, 94), (634, 94)], "#536582", 1.5)
+    for x, label, anchor in [(27, "INPUT", "start"), (141, "MODE", "start"),
+                             (438, "CYCLES", "end"), (632, "ms", "end")]:
+        fig.text(x, 125, label, 24, PALE_BLUE, 700, anchor=anchor, mono=True)
+    seen = set()
+    for index, words in enumerate(result_lines):
+        case, mode, *values, status = (int(word, 16) for word in words)
+        key = (case, ("hybrid", "cpu_only")[mode])
+        row = rows[key]
+        assert key not in seen and values == [row[field] for field in fields] and status == 0
+        seen.add(key)
+        y = 163 + index*32
+        fig.text(27, y, ("Stop", "Left")[case], 25, WHITE, mono=True)
+        fig.text(141, y, ("Hybrid", "Scalar C")[mode], 25, WHITE, mono=True)
+        cycles = row["total_cycles"]
+        fig.text(438, y, f"{cycles:,}", 25, WHITE, anchor="end", mono=True)
+        fig.text(632, y, f"{cycles/CYCLES_PER_MS:.5f}", 25, WHITE, anchor="end", mono=True)
+    fig.line([(26, 279), (634, 279)], "#536582", 1.5)
+    fig.text(27, 312, f"{transcript[-1]}  ·  archived firmware", 23, PALE_TEAL, 700, mono=True)
     return fig
 
 
@@ -180,7 +241,8 @@ def main():
     from playwright.sync_api import sync_playwright
 
     rows = board_rows()
-    figures = [("architecture", architecture()), ("k7_subgraph_latency", latency(rows)),
+    figures = [("hero", hero()), ("architecture", architecture()),
+               ("k7_subgraph_latency", latency(rows)), ("uart-replay", uart_replay(rows)),
                ("social-preview", social(rows))]
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel=args.channel)

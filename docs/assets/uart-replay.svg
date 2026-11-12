@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="339" viewBox="0 0 660 339" role="img" aria-labelledby="title desc">
+<title id="title">Recorded UART log replay</title><desc id="desc">Four decoded K7 board timings from the archived UART transcript.</desc>
+<rect x="0" y="0" width="660" height="339" rx="0" fill="#F6F8FB" stroke="none" stroke-width="1.5"/>
+<rect x="2" y="2" width="656" height="335" rx="15" fill="#152238" stroke="#415069" stroke-width="1.5"/>
+<text x="25" y="43" fill="#FFFFFF" font-size="33" font-family="Arial, Liberation Sans, sans-serif" font-weight="700" text-anchor="start">Recorded UART log replay</text>
+<text x="26" y="74" fill="#BBD4FF" font-size="23" font-family="Arial, Liberation Sans, sans-serif" font-weight="400" text-anchor="start">Kintex-7 · 50 MHz · 2026-11-07</text>
+<polyline points="26,94 634,94" fill="none" stroke="#536582" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="27" y="125" fill="#BBD4FF" font-size="24" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">INPUT</text>
+<text x="141" y="125" fill="#BBD4FF" font-size="24" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">MODE</text>
+<text x="438" y="125" fill="#BBD4FF" font-size="24" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="end">CYCLES</text>
+<text x="632" y="125" fill="#BBD4FF" font-size="24" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="end">ms</text>
+<text x="27" y="163" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">Stop</text>
+<text x="141" y="163" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">Hybrid</text>
+<text x="438" y="163" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="end">933,939</text>
+<text x="632" y="163" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="end">18.67878</text>
+<text x="27" y="195" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">Stop</text>
+<text x="141" y="195" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">Scalar C</text>
+<text x="438" y="195" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="end">6,385,144</text>
+<text x="632" y="195" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="end">127.70288</text>
+<text x="27" y="227" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">Left</text>
+<text x="141" y="227" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">Hybrid</text>
+<text x="438" y="227" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="end">934,233</text>
+<text x="632" y="227" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="end">18.68466</text>
+<text x="27" y="259" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">Left</text>
+<text x="141" y="259" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="start">Scalar C</text>
+<text x="438" y="259" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="end">6,384,683</text>
+<text x="632" y="259" fill="#FFFFFF" font-size="25" font-family="Consolas, Liberation Mono, monospace" font-weight="400" text-anchor="end">127.69366</text>
+<polyline points="26,279 634,279" fill="none" stroke="#536582" stroke-width="1.5" stroke-linejoin="round"/>
+<text x="27" y="312" fill="#95E5D5" font-size="23" font-family="Consolas, Liberation Mono, monospace" font-weight="700" text-anchor="start">CIM_PASS  ·  archived firmware</text>
+</svg>

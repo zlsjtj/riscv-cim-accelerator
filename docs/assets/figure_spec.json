@@ -15,7 +15,7 @@
   "architecture": {
     "size": [
       840,
-      560
+      510
     ],
     "source_commit": "a37a911",
     "sources": [
@@ -26,12 +26,20 @@
     ],
     "control": "dashed with arrowheads",
     "data": "solid with arrowheads",
-    "scope": "Two independently submitted PW operations, with CPU DW in between."
+    "scope": "Two independently submitted PW operations, with CPU DW in between.",
+    "roles": [
+      "RISC-V CPU",
+      "shared SRAM",
+      "banked input scratchpad",
+      "digital CiM macro proxy",
+      "result slots and INT32 rebuild",
+      "requantization and writeback"
+    ]
   },
   "latency": {
     "size": [
       840,
-      433
+      388
     ],
     "evidence_commit": "6002694",
     "source": "../evidence/kws_subgraph/k7_board.json",
@@ -41,9 +49,22 @@
       140
     ],
     "tick_ms": 20,
-    "display_decimals": 2,
+    "display_decimals": 3,
     "clock_mhz": 50,
-    "bitstream_readback": "43494d4a"
+    "bitstream_readback": "43494d4a",
+    "speedup_decimals": 2,
+    "samples": [
+      {
+        "name": "Stop",
+        "hybrid_cycles": 933939,
+        "scalar_cycles": 6385144
+      },
+      {
+        "name": "Left",
+        "hybrid_cycles": 934233,
+        "scalar_cycles": 6384683
+      }
+    ]
   },
   "social_preview": {
     "size": [
@@ -53,5 +74,31 @@
     "max_bytes": 1000000,
     "background": "opaque",
     "headline": "Approximately 6.8x KWS subgraph speedup on K7 at 50 MHz vs. same-firmware RV32IM C."
+  },
+  "hero": {
+    "size": [
+      1280,
+      288
+    ],
+    "source_commit": "a37a911",
+    "role": "README banner",
+    "flow": [
+      "banked input scratchpad",
+      "digital CiM macro proxy",
+      "INT8 writeback"
+    ]
+  },
+  "uart_replay": {
+    "size": [
+      660,
+      339
+    ],
+    "evidence_commit": "6002694",
+    "source": "../evidence/kws_subgraph/k7_board_uart.txt",
+    "source_sha256": "ae330510f3072040c2218b0d32e6a35222f1d8f6b79ddb743e72d765233abca8",
+    "decoded_against": "../evidence/kws_subgraph/k7_board.json",
+    "evidence_state": "static replay of recorded UART from 2026-11-07",
+    "clock_mhz": 50,
+    "display_decimals": 5
   }
 }

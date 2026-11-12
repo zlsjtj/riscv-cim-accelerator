@@ -5,6 +5,9 @@
 [GitHub Release](https://github.com/zlsjtj/riscv-cim-accelerator/releases/tag/v0.4.0) ·
 [英文首页](../README.md) · [中文首页](../README.zh-CN.md) · [复现入口](REPRODUCE.md)
 
+首页展示包含简版架构与性能图、真实串口归档回放和双语讲解入口。
+[UART 回放](DEMO.md) · [英文设计讲解](DESIGN_TALK.en.md) · [中文设计讲解](DESIGN_TALK.md)
+
 真实 KWS 子图使用固定 INT8 模型的 PW(op2) → CPU DW(op3) → PW(op4)。
 Stop、Left 两条公开量化 MFCC 输入均从真实 tensor23 开始。混合路径两次
 独立 START，中间数据经共享 SRAM 交给 CPU DW 和第二个 PW。
